@@ -31,8 +31,9 @@ namespace AutoSprint
                 "General",
                 "Disable Sprint Custom List",
                 "",
-                "Custom EntityState list for when broken things break. " +
-                "\r\n-> typeof(EntityStates.Character.ExampleState).FullName");
+                "Custom EntityState list for when broken things break, separated by commas." +
+                "\r\nManual Entry -> EntityStates.Character.ExampleState" +
+                "\r\nFrom Code -> typeof(EntityStates.Character.ExampleState).FullName");
         } // End of SetupConfiguration()
 
         #region Config Binding

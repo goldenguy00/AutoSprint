@@ -75,6 +75,16 @@ namespace AutoSprint
             stateAnimationDelayList.Remove(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+
+            var customList = PluginConfig.DisableSprintingCustomList.Value;
+            if (!string.IsNullOrEmpty(customList))
+            {
+                var states = customList.Replace(" ", string.Empty).Split(',');
+                foreach (var state in states)
+                {
+                    stateSprintDisableList.Add(state);
+                }
+            }
         }
 
         private void PlayerCharacterMasterController_Update(On.RoR2.PlayerCharacterMasterController.orig_Update orig, PlayerCharacterMasterController self)
