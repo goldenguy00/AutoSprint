@@ -1,9 +1,11 @@
-# R2Boilerplate
+# Fixed Version Of RTAutoSprint
 
-This repository contains a sample mod for Risk of Rain 2.
+It works for all skills, no more hardcoding which one does what. Works for Seekers of the Storm and every character ever.
 
-You can clone this repository, open the visual studio solution file and compile it immediately.
+Except for the fact that it doesn't. Because of course there's special cases. Report bugs to the github issues page.
 
-This repository is meant to represent best practices for starting a simple mod.
+---
 
-Once your mod get compiled, you can utilize the Thunderstore folder for later uploading it to https://thunderstore.io/c/riskofrain2/
+### Original
+
+- https://thunderstore.io/package/JohnEdwa/RTAutoSprintEx/

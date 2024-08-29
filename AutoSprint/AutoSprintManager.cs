@@ -70,9 +70,12 @@ namespace AutoSprint
             // special cases bandaid fix.
             // they dont list cancelledBySprinting in the skilldef,
             // but are cancelled by sprinting in the entitystate.FixedUpdate
-            stateSprintDisableList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).AssemblyQualifiedName);
-            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).AssemblyQualifiedName);
-            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).AssemblyQualifiedName);
+            stateSprintDisableList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
         }
 
         public float RT_timer;
