@@ -4,6 +4,8 @@ using UnityEngine;
 using Rewired;
 using HarmonyLib;
 using RoR2.Skills;
+using MonoMod.Cil;
+using System;
 
 namespace AutoSprint
 {
@@ -11,6 +13,88 @@ namespace AutoSprint
     {
         internal readonly HashSet<string> stateSprintDisableList = [];
         internal readonly HashSet<string> stateAnimationDelayList = [];
+
+        public float RT_timer;
+        public float RT_animationCancelDelay = 0.15f;
+        public bool RT_animationCancel;
+        public bool RT_walkToggle;
+
+        public static AutoSprintManager Instance { get; private set; }
+
+        public static void Init() => Instance ??= new AutoSprintManager();
+
+        private AutoSprintManager()
+        {
+            On.RoR2.Skills.SkillCatalog.Init += SkillCatalog_Init;
+            On.RoR2.PlayerCharacterMasterController.Update += PlayerCharacterMasterController_Update;
+
+            IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
+        }
+
+        private static void CrosshairManager_UpdateCrosshair(ILContext il)
+        {
+            var c = new ILCursor(il);
+            if (c.TryGotoNext(MoveType.After,
+                    x => x.MatchCallvirt<CharacterBody>("get_isSprinting")
+                ))
+            {
+                c.EmitDelegate<Func<bool, bool>>((val) => val && !PluginConfig.DisableSprintingCrosshair.Value);
+            }
+        }
+
+        private void SkillCatalog_Init(On.RoR2.Skills.SkillCatalog.orig_Init orig)
+        {
+            orig();
+
+            foreach (var skill in SkillCatalog.allSkillDefs)
+            {
+                if (!skill || skill.forceSprintDuringState)
+                    continue;
+
+                if (skill.canceledFromSprinting)
+                    stateSprintDisableList.Add(skill.activationState.typeName);
+                if (skill.cancelSprintingOnActivation)
+                    stateAnimationDelayList.Add(skill.activationState.typeName);
+            }
+
+            // special cases bandaid fix.
+            // they dont list cancelledBySprinting in the skilldef,
+            // but are cancelled by sprinting in the entitystate.FixedUpdate
+            // ill do it right some other time
+            stateSprintDisableList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Toolbot.ToolbotDualWield).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldEnd).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWield).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWieldEnd).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.FireNailgun).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
+            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+        }
+
+        private void PlayerCharacterMasterController_Update(On.RoR2.PlayerCharacterMasterController.orig_Update orig, PlayerCharacterMasterController self)
+        {
+            orig(self);
+
+            var bodyInputs = self.bodyInputs;
+            if (bodyInputs)
+            {
+                if (self.networkUser && self.networkUser.localUser != null && !self.networkUser.localUser.isUIFocused)
+                {
+                    var body = self.body;
+                    if (body)
+                    {
+                        var inputPlayer = self.networkUser.localUser.inputPlayer;
+                        HandleSprint(body, inputPlayer, bodyInputs);
+                    }
+                }
+            }
+        }
 
         // Checks if the duration value exists.
         private float SprintDelayTime(CharacterBody targetBody)
@@ -40,66 +124,6 @@ namespace AutoSprint
                     return true;
             }
             return false;
-        }
-
-        public static AutoSprintManager Instance { get; private set; }
-
-        public static void Init() => Instance ??= new AutoSprintManager();
-        private AutoSprintManager()
-        {
-            On.RoR2.Skills.SkillCatalog.Init += SkillCatalog_Init;
-
-            On.RoR2.PlayerCharacterMasterController.Update += PlayerCharacterMasterController_Update;
-        } // End of Awake
-
-        private void SkillCatalog_Init(On.RoR2.Skills.SkillCatalog.orig_Init orig)
-        {
-            orig();
-
-            foreach (var skill in SkillCatalog.allSkillDefs)
-            {
-                if (!skill || skill.forceSprintDuringState)
-                    continue;
-
-                if (skill.canceledFromSprinting)
-                    stateSprintDisableList.Add(skill.activationState.typeName);
-                else if (skill.cancelSprintingOnActivation)
-                    stateAnimationDelayList.Add(skill.activationState.typeName);
-            }
-
-            // special cases bandaid fix.
-            // they dont list cancelledBySprinting in the skilldef,
-            // but are cancelled by sprinting in the entitystate.FixedUpdate
-            stateSprintDisableList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
-            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
-            stateAnimationDelayList.Remove(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
-            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
-        }
-
-        public float RT_timer;
-        public float RT_animationCancelDelay = 0.15f;
-        public bool RT_animationCancel;
-        public bool RT_walkToggle;
-
-        private void PlayerCharacterMasterController_Update(On.RoR2.PlayerCharacterMasterController.orig_Update orig, PlayerCharacterMasterController self)
-        {
-            orig(self);
-
-            var bodyInputs = self.bodyInputs;
-            if (bodyInputs)
-            {
-                if (self.networkUser && self.networkUser.localUser != null && !self.networkUser.localUser.isUIFocused)
-                {
-                    var body = self.body;
-                    if (body)
-                    {
-                        var inputPlayer = self.networkUser.localUser.inputPlayer;
-                        HandleSprint(body, inputPlayer, bodyInputs);
-                    }
-                }
-            }
         }
 
         public void HandleSprint(CharacterBody body, Player inputPlayer, InputBankTest bodyInputs)

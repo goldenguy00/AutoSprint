@@ -9,6 +9,7 @@ namespace AutoSprint
         public static ConfigFile myConfig;
         public static ConfigEntry<bool> HoldSprintToWalk { get; set; }
         public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
+        public static ConfigEntry<string> DisableSprintingCustomList { get; set; }
 
         public static void Init(ConfigFile cfg)
         {
@@ -16,14 +17,22 @@ namespace AutoSprint
 
             HoldSprintToWalk = BindOption(
                 "General",
-                "HoldSprintToWalk",
+                "Hold Sprint To Walk",
                 true,
                 "Walk by holding down the sprint key. If disabled, makes the Sprint key toggle AutoSprinting functionality on and off.");
+
             DisableSprintingCrosshair = BindOption(
-                "General", 
-                "DisableSprintingCrosshair", 
-                false,
+                "General",
+                "Disable Sprinting Crosshair",
+                true,
                 "Disables the special sprinting chevron crosshair.");
+
+            DisableSprintingCustomList = BindOption(
+                "General",
+                "Disable Sprint Custom List",
+                "",
+                "Custom EntityState list for when broken things break. " +
+                "\r\n-> typeof(EntityStates.Character.ExampleState).FullName");
         } // End of SetupConfiguration()
 
         #region Config Binding
