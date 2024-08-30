@@ -74,7 +74,7 @@ namespace AutoSprint
             stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.FireNailgun).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+            stateAnimationDelayList.Remove("EntityStates.FalseSon.LaserFather");
 
             var customList = PluginConfig.DisableSprintingCustomList.Value;
             if (!string.IsNullOrEmpty(customList))
