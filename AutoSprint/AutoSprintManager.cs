@@ -92,7 +92,9 @@ namespace AutoSprint
 
             // AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
             stateSprintDisableList.Remove(typeof(EntityStates.Croco.Slash).FullName);
-            stateAnimationDelayList.Add(typeof(EntityStates.Croco.Slash).FullName, typeof(EntityStates.Croco.Slash).GetField(nameof(EntityStates.Croco.Slash.durationBeforeInterruptable)));
+            stateSprintDisableList.Remove(typeof(EntityStates.Croco.Bite).FullName);
+            stateAnimationDelayList[typeof(EntityStates.Croco.Slash).FullName] = AccessTools.DeclaredField(typeof(EntityStates.Croco.Slash), nameof(EntityStates.Croco.Slash.durationBeforeInterruptable));
+            stateAnimationDelayList[typeof(EntityStates.Croco.Bite).FullName] = AccessTools.DeclaredField(typeof(EntityStates.Croco.Bite), nameof(EntityStates.Croco.Bite.durationBeforeInterruptable));
 
             var customList = PluginConfig.DisableSprintingCustomList.Value;
             if (!string.IsNullOrEmpty(customList))
@@ -134,8 +136,7 @@ namespace AutoSprint
                 var currentState = machine.state;
                 if (currentState != null && stateAnimationDelayList.TryGetValue(currentState.ToString(), out var field))
                 {
-                    var fieldValue = field?.GetValue(currentState);
-                    if (fieldValue is not null and float d)
+                    if (field is not null && field.GetValue(currentState) is float d)
                         duration = Mathf.Max(duration, d);
                 }
             }
