@@ -10,6 +10,7 @@ namespace AutoSprint
         public static ConfigEntry<bool> HoldSprintToWalk { get; set; }
         public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
         public static ConfigEntry<string> DisableSprintingCustomList { get; set; }
+        public static ConfigEntry<bool> EnableOmniSprint { get; set; }
 
         public static void Init(ConfigFile cfg)
         {
@@ -34,6 +35,13 @@ namespace AutoSprint
                 "Custom EntityState list for when broken things break, separated by commas." +
                 "\r\nManual Entry -> EntityStates.Character.ExampleState" +
                 "\r\nFrom Code -> typeof(EntityStates.Character.ExampleState).FullName");
+
+
+            EnableOmniSprint = BindOption(
+                "General",
+                "Enable OmniSprint",
+                false,
+                "Allows sprinting in all directions. This is generally considered cheating, use wit");
         } // End of SetupConfiguration()
 
         #region Config Binding

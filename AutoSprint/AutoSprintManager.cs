@@ -6,13 +6,14 @@ using HarmonyLib;
 using RoR2.Skills;
 using MonoMod.Cil;
 using System;
+using System.Reflection;
 
 namespace AutoSprint
 {
     public class AutoSprintManager
     {
         internal readonly HashSet<string> stateSprintDisableList = [];
-        internal readonly HashSet<string> stateAnimationDelayList = [];
+        internal readonly Dictionary<string, FieldInfo> stateAnimationDelayList = [];
 
         public float RT_timer;
         public float RT_animationCancelDelay = 0.15f;
@@ -48,33 +49,50 @@ namespace AutoSprint
 
             foreach (var skill in SkillCatalog.allSkillDefs)
             {
-                if (!skill || skill.forceSprintDuringState)
+                if (!skill || skill.forceSprintDuringState || skill.activationState.stateType is null)
                     continue;
-
+                
+                var type = skill.activationState.stateType;
                 if (skill.canceledFromSprinting)
-                    stateSprintDisableList.Add(skill.activationState.typeName);
-                if (skill.cancelSprintingOnActivation)
-                    stateAnimationDelayList.Add(skill.activationState.typeName);
+                {
+                    stateSprintDisableList.Add(type.FullName);
+                }
+                else if (skill.cancelSprintingOnActivation && !stateAnimationDelayList.ContainsKey(type.FullName))
+                {
+                    var durationField = AccessTools.FindIncludingBaseTypes(type, t => t.GetField("duration", AccessTools.all));
+                    if (durationField != null)
+                        stateAnimationDelayList.Add(type.FullName, durationField);
+                }
             }
 
             // special cases bandaid fix.
             // they dont list cancelledBySprinting in the skilldef,
             // but are cancelled by sprinting in the entitystate.FixedUpdate
             // ill do it right some other time
-            stateSprintDisableList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
-            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+
             stateSprintDisableList.Add(typeof(EntityStates.Toolbot.ToolbotDualWield).FullName);
             stateSprintDisableList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName);
             stateSprintDisableList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldEnd).FullName);
-            stateSprintDisableList.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWield).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWieldEnd).FullName);
+
+            stateSprintDisableList.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Toolbot.FireNailgun).FullName);
+
+            stateSprintDisableList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
+
+            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
+            stateSprintDisableList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
             stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            stateAnimationDelayList.Remove("EntityStates.FalseSon.LaserFather");
+            stateAnimationDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+
+            stateAnimationDelayList.Remove(typeof(EntityStates.FalseSon.LaserFather).FullName);
+
+            // AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+            stateSprintDisableList.Remove(typeof(EntityStates.Croco.Slash).FullName);
+            stateAnimationDelayList.Add(typeof(EntityStates.Croco.Slash).FullName, typeof(EntityStates.Croco.Slash).GetField(nameof(EntityStates.Croco.Slash.durationBeforeInterruptable)));
 
             var customList = PluginConfig.DisableSprintingCustomList.Value;
             if (!string.IsNullOrEmpty(customList))
@@ -83,6 +101,7 @@ namespace AutoSprint
                 foreach (var state in states)
                 {
                     stateSprintDisableList.Add(state);
+                    stateAnimationDelayList.Remove(state);
                 }
             }
         }
@@ -113,10 +132,10 @@ namespace AutoSprint
             foreach (var machine in targetBody.GetComponents<EntityStateMachine>())
             {
                 var currentState = machine.state;
-                if (currentState != null && stateAnimationDelayList.Contains(currentState.ToString()))
+                if (currentState != null && stateAnimationDelayList.TryGetValue(currentState.ToString(), out var field))
                 {
-                    var fieldValue = AccessTools.FindIncludingBaseTypes(currentState.GetType(), t => t.GetField("duration", AccessTools.all))?.GetValue(currentState);
-                    if (fieldValue is float d)
+                    var fieldValue = field?.GetValue(currentState);
+                    if (fieldValue is not null and float d)
                         duration = Mathf.Max(duration, d);
                 }
             }
