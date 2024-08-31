@@ -41,7 +41,7 @@ namespace AutoSprint
                 "General",
                 "Enable OmniSprint",
                 false,
-                "Allows sprinting in all directions. This is generally considered cheating, use wit");
+                "Allows sprinting in all directions. This is generally considered cheating, use with discretion.");
         } // End of SetupConfiguration()
 
         #region Config Binding

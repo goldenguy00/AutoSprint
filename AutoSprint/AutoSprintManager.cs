@@ -217,7 +217,7 @@ namespace AutoSprint
                 moveVector.y = 0f;
                 moveVector.Normalize();
                 
-                if ((body.bodyFlags & CharacterBody.BodyFlags.SprintAnyDirection) == 0 && Vector3.Dot(aimDirection, moveVector) < PlayerCharacterMasterController.sprintMinAimMoveDot)
+                if (!PluginConfig.EnableOmniSprint.Value && (body.bodyFlags & CharacterBody.BodyFlags.SprintAnyDirection) == 0 && Vector3.Dot(aimDirection, moveVector) < PlayerCharacterMasterController.sprintMinAimMoveDot)
                 {
                     RT_isSprinting = false;
                 }
