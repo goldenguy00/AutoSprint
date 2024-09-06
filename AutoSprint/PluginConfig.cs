@@ -33,8 +33,9 @@ namespace AutoSprint
                 "Disable Sprint Custom List",
                 "",
                 "Custom EntityState list for when broken things break, separated by commas." +
-                "\r\nManual Entry -> EntityStates.Character.ExampleState" +
-                "\r\nFrom Code -> typeof(EntityStates.Character.ExampleState).FullName");
+                "\r\nUse console (Ctrl Alt ~) and enter dump_state to find this info (last couple lines)." +
+                "\r\nMany skills have multiple states, so it may help to pause while doing this." +
+                "\r\n\r\nExample -> PaladinMod.States.Spell.ChannelCruelSun");
 
 
             EnableOmniSprint = BindOption(
