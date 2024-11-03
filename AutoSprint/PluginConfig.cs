@@ -57,7 +57,7 @@ namespace AutoSprint
 
             var configEntry = myConfig.Bind(section, name, defaultValue, description);
 
-            if (AutoSprintPlugin.rooInstalled)
+            if (AutoSprintPlugin.RooInstalled)
                 TryRegisterOption(configEntry, restartRequired);
 
             return configEntry;
@@ -76,7 +76,7 @@ namespace AutoSprint
 
             var configEntry = myConfig.Bind(section, name, defaultValue, description);
 
-            if (AutoSprintPlugin.rooInstalled)
+            if (AutoSprintPlugin.RooInstalled)
                 TryRegisterOptionSlider(configEntry, min, max, restartRequired);
 
             return configEntry;
@@ -87,7 +87,7 @@ namespace AutoSprint
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static void InitRoO()
         {
-            RiskOfOptions.ModSettingsManager.SetModDescription("Devotion Artifact but better.");
+            RiskOfOptions.ModSettingsManager.SetModDescription("AutoSprint");
         }
 
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
@@ -95,7 +95,11 @@ namespace AutoSprint
         {
             if (entry is ConfigEntry<string> stringEntry)
             {
-                RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.StringInputFieldOption(stringEntry, restartRequired));
+                RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.StringInputFieldOption(stringEntry, new RiskOfOptions.OptionConfigs.InputFieldConfig()
+                {
+                    restartRequired = restartRequired,
+                    submitOn = RiskOfOptions.OptionConfigs.InputFieldConfig.SubmitEnum.OnExitOrSubmit
+                }));
                 return;
             }
             if (entry is ConfigEntry<float> floatEntry)
@@ -104,7 +108,7 @@ namespace AutoSprint
                 {
                     min = 0,
                     max = 20,
-                    formatString = "{0:0.00}",
+                    FormatString = "{0:0.00}",
                     restartRequired = restartRequired
                 }));
                 return;
@@ -151,7 +155,7 @@ namespace AutoSprint
                 {
                     min = min,
                     max = max,
-                    formatString = "{0:0.00}",
+                    FormatString = "{0:0.00}",
                     restartRequired = restartRequired
                 }));
         }
