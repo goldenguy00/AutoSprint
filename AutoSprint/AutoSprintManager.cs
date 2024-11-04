@@ -3,24 +3,31 @@ using RoR2;
 using UnityEngine;
 using Rewired;
 using HarmonyLib;
-using RoR2.Skills;
-using MonoMod.Cil;
 using System;
 using System.Reflection;
+using System.Collections;
+using System.Linq;
+using EntityStates;
 
 namespace AutoSprint
 {
     public class AutoSprintManager
     {
+        internal static readonly HashSet<BodyIndex> disabledBodies = [];
         internal static readonly HashSet<string> sprintDisabledList = [];
-        internal static readonly Dictionary<string, FieldInfo> animDelayList = [];
 
-        public const float ANIM_CANCEL_DELAY = -0.15f;
+        internal static readonly HashSet<EntityStateIndex> sprintDisabledSet = [];
+        internal static readonly Hashtable animDelayList = [];
+
+        internal static readonly Dictionary<string, EntityStateIndex> typeFullNameToStateIndex = [];
+
+        public float AnimationExitDelay => PluginConfig.DelayTicks.Value;
 
         public CharacterBody cachedBody;
-        public EntityStateMachine[] cachedStates;
+        public EntityStateMachine[] cachedStateMachines;
 
-        public bool waitForAnimation, enableWalk;
+        public static bool enableSprintOverride = true;
+
         public float timer;
 
         public static AutoSprintManager Instance { get; private set; }
@@ -29,98 +36,204 @@ namespace AutoSprint
 
         private AutoSprintManager()
         {
-            On.RoR2.Skills.SkillCatalog.Init += SkillCatalog_Init;
-            On.RoR2.PlayerCharacterMasterController.FixedUpdate += PlayerCharacterMasterController_FixedUpdate;
-
-            IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
         }
 
-        private static void CrosshairManager_UpdateCrosshair(ILContext il)
+        public static void OnLoad()
         {
-            var c = new ILCursor(il);
-            if (c.TryGotoNext(MoveType.After,
-                    x => x.MatchCallvirt<CharacterBody>("get_isSprinting")
-                ))
+            Instance.UpdateSprintDisabledList(null, null);
+            Instance.UpdateSprintDisabledList2(null, null);
+            PluginConfig.DisableSprintingCustomList.SettingChanged += Instance.UpdateSprintDisabledList;
+            PluginConfig.DisableSprintingCustomList2.SettingChanged += Instance.UpdateSprintDisabledList2;
+        }
+
+        public void AddItem(string typeFullName, string fieldName)
+        {
+            if (typeFullNameToStateIndex.TryGetValue(typeFullName, out var index))
             {
-                c.EmitDelegate<Func<bool, bool>>((val) => val && !PluginConfig.DisableSprintingCrosshair.Value);
+                var type = EntityStateCatalog.GetStateType(index);
+
+                if (type != null)
+                {
+                    var field = AccessTools.DeclaredField(type, fieldName);
+                    if (field != null)
+                    {
+                        animDelayList[index] = field;
+                        Log.Info($"Type: {typeFullName} | Field: {fieldName} | Has been added to the custom entity state list.");
+                    }
+                    else
+                    {
+                        Log.Error($"Type: {typeFullName} | Field: {fieldName} | The field does not exist in this type.");
+                    }
+                }
+                else
+                {
+                    Log.Error($"Type: {typeFullName} | Field: {fieldName} | The state exists in the EntityStateCatalog but the type is null.");
+                }
+            }
+            else
+            {
+                Log.Error($"Type: {typeFullName} | Field: {fieldName} | The type does not exist in the EntityStateCatalog.");
             }
         }
 
-        private void SkillCatalog_Init(On.RoR2.Skills.SkillCatalog.orig_Init orig)
+        public void AddItem<T>(string name)
         {
-            orig();
-
-            foreach (var skill in SkillCatalog.allSkillDefs)
+            if (typeFullNameToStateIndex.TryGetValue(typeof(T).FullName, out var index))
             {
-                if (!skill || skill.forceSprintDuringState || skill.activationState.stateType is null)
-                    continue;
-                
-                var type = skill.activationState.stateType;
-                if (skill.canceledFromSprinting)
+                var field = AccessTools.DeclaredField(typeof(T), name);
+
+                if (field is null)
                 {
-                    sprintDisabledList.Add(type.FullName);
+                    Log.Error($"\r\nField is null. Attempting to add numeric...\r\n{typeof(T).FullName} : {name ?? "NULL"}");
+                    AddItemWithValue<T>(name ?? "0");
                 }
-                else if (skill.cancelSprintingOnActivation && !animDelayList.ContainsKey(type.FullName))
+                else if (field.FieldType != typeof(float))
                 {
-                    var durationField = AccessTools.FindIncludingBaseTypes(type, t => t.GetField("duration", AccessTools.all));
-                    if (durationField != null)
-                        animDelayList.Add(type.FullName, durationField);
+                    Log.Error($"\r\nField must be a float\r\n{typeof(T).FullName} : {field.Name}");
+                    AddItemWithValue<T>(name ?? "0");
+                }
+                else
+                {
+                    if (animDelayList.ContainsKey(index))
+                        Log.Warning($"\r\nOverwriting duplicate entry\r\n{typeof(T).FullName} : {field.Name}\r\nold {animDelayList[index]?.ToString() ?? "NULL"} | new {field.Name}");
+                    else
+                        Log.Info($"Type: {typeof(T).FullName} | Field: {name} | Has been added to the custom entity state list.");
+
+                    animDelayList[index] = field;
+                }
+            }
+            else
+                Log.Error($"\r\nType name could not be found in the entityStateCatalog\r\n{typeof(T).FullName} : {name}");
+        }
+
+        public void AddItemWithValue<T>(string name)
+        {
+            if (typeFullNameToStateIndex.TryGetValue(typeof(T).FullName, out var index))
+            {
+                name = (name ?? "0").Replace(" ", string.Empty);
+
+                if (!float.TryParse(name, out var val))
+                {
+                    Log.Error($"\r\nCould not parse the string. value will default to 0\r\n{typeof(T).FullName} : {name}");
+                    val = 0;
+                }
+                Log.Info($"Type: {typeof(T).FullName} | Field: {name} | Has been added to the custom entity state list.");
+                animDelayList[index] = val;
+            }
+            else
+                Log.Error($"\r\nType name could not be found in the entityStateCatalog\r\n{typeof(T).FullName} : {name}");
+        }
+
+        private void UpdateSprintDisabledList2(object _, EventArgs __)
+        {
+            animDelayList.Clear();
+
+            AddItem<EntityStates.Toolbot.ToolbotDualWieldStart>(nameof(EntityStates.Toolbot.ToolbotDualWieldStart.baseDuration));
+            AddItem<EntityStates.Croco.Slash>(nameof(EntityStates.Croco.Slash.durationBeforeInterruptable));
+            AddItem<EntityStates.Croco.Bite>(nameof(EntityStates.Croco.Bite.durationBeforeInterruptable));
+
+            foreach (var stateString in PluginConfig.DisableSprintingCustomList2.Value.Replace(" ", string.Empty).Split(')'))
+            {
+                //(x,y
+                if (!string.IsNullOrEmpty(stateString))
+                {
+                    var pair = stateString.Replace("(", string.Empty).Split(',');
+                    if (pair.Length == 2)
+                    {
+                        AddItem(pair[0], pair[1]);
+                        Log.Info($"Successfully added {pair[0]} | {pair[1]}");
+                    }
+                    else
+                    {
+                        Log.Info($"{stateString} is not in the valid (key, value) pair format, skipping...");
+                    }
+                }
+            }
+        }
+
+        private void UpdateSprintDisabledList(object _, EventArgs __)
+        {
+            sprintDisabledSet.Clear();
+
+            foreach (var item in sprintDisabledList)
+            {
+                if (typeFullNameToStateIndex.TryGetValue(item, out var index))
+                {
+                    sprintDisabledSet.Add(index);
+                    Log.Info($"{item} added to the custom entity state list.");
+                }
+                else
+                {
+                    Log.Warning($"{item} is not a valid entity state, skipping...");
                 }
             }
 
-            // special cases bandaid fix.
-            // they dont list cancelledBySprinting in the skilldef,
-            // but are cancelled by sprinting in the entitystate.FixedUpdate
-            // ill do it right some other time
+            List<string> customList =
+            [
+                "LeeHyperrealMod.SkillStates.LeeHyperreal.Secondary.EnterSnipe",
+                "LeeHyperrealMod.SkillStates.LeeHyperreal.Secondary.Snipe",
+                "LeeHyperrealMod.SkillStates.LeeHyperreal.Secondary.ExitSnipe",
+                "PaladinMod.States.Spell.ChannelCruelSun",
+                "PaladinMod.States.Spell.ChannelHealZone",
+                "PaladinMod.States.Spell.ChannelSmallHeal",
+                "PaladinMod.States.Spell.ChannelTorpor",
+                "PaladinMod.States.Spell.ChannelWarcry",
+                "PaladinMod.States.Spell.CastCruelSun",
+                "PaladinMod.States.Spell.CastChanneledWarcry",
+                "PaladinMod.States.Spell.CastChanneledTorpor",
+                "PaladinMod.States.Spell.CastChanneledHealZone",
+                "RA2Mod.Survivors.Chrono.States.ChronoCharacterMain",
+            ];
 
-            sprintDisabledList.Add(typeof(EntityStates.Toolbot.ToolbotDualWield).FullName);
-            sprintDisabledList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName);
-            sprintDisabledList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldEnd).FullName);
-            animDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWield).FullName);
-            animDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName);
-            animDelayList.Remove(typeof(EntityStates.Toolbot.ToolbotDualWieldEnd).FullName);
-
-            sprintDisabledList.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
-            animDelayList.Remove(typeof(EntityStates.Toolbot.FireNailgun).FullName);
-
-            sprintDisabledList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
-            animDelayList.Remove(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
-
-            sprintDisabledList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            sprintDisabledList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
-            animDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            animDelayList.Remove(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
-
-            animDelayList.Remove(typeof(EntityStates.FalseSon.LaserFather).FullName);
-
-            // AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-            sprintDisabledList.Remove(typeof(EntityStates.Croco.Slash).FullName);
-            sprintDisabledList.Remove(typeof(EntityStates.Croco.Bite).FullName);
-            animDelayList[typeof(EntityStates.Croco.Slash).FullName] = AccessTools.DeclaredField(typeof(EntityStates.Croco.Slash), nameof(EntityStates.Croco.Slash.durationBeforeInterruptable));
-            animDelayList[typeof(EntityStates.Croco.Bite).FullName] = AccessTools.DeclaredField(typeof(EntityStates.Croco.Bite), nameof(EntityStates.Croco.Bite.durationBeforeInterruptable));
-
-            // lazy paladin compat
-            var customList = "PaladinMod.States.Spell.ChannelCruelSun, PaladinMod.States.Spell.ChannelHealZone, PaladinMod.States.Spell.ChannelSmallHeal, PaladinMod.States.Spell.ChannelTorpor, PaladinMod.States.Spell.ChannelWarcry, " +
-                "PaladinMod.States.Spell.CastCruelSun, PaladinMod.States.Spell.CastChanneledWarcry, PaladinMod.States.Spell.CastChanneledTorpor, PaladinMod.States.Spell.CastChanneledHealZone, " + PluginConfig.DisableSprintingCustomList.Value;
-            var states = customList.Replace(" ", string.Empty).Split(',');
+            // lazy paladin/lee compat
+            var states = PluginConfig.DisableSprintingCustomList.Value.Replace(" ", string.Empty).Split(',');
             foreach (var state in states)
             {
                 if (!string.IsNullOrWhiteSpace(state))
                 {
-                    sprintDisabledList.Add(state);
-                    animDelayList.Remove(state);
+                    customList.Add(state);
+                }
+            }
+
+            foreach (var item in customList)
+            {
+                if (typeFullNameToStateIndex.TryGetValue(item, out var index))
+                {
+                    sprintDisabledSet.Add(index);
+                    Log.Info($"{item} added to the custom entity state list.");
+                }
+                else
+                {
+                    Log.Warning($"{item} is not a valid entity state, skipping...");
                 }
             }
         }
 
-        private void PlayerCharacterMasterController_FixedUpdate(On.RoR2.PlayerCharacterMasterController.orig_FixedUpdate orig, PlayerCharacterMasterController self)
+        public static void Sprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
         {
-            orig(self);
+            if (Instance is null || inputPlayer is null || disabledBodies.Contains(pcmc.body.bodyIndex))
+                return;
 
-            if (self.body && self.bodyInputs && PlayerCharacterMasterController.CanSendBodyInput(self.networkUser, out _, out var inputPlayer, out _, out var onlyAllowMovement) && !onlyAllowMovement)
-            {
-                HandleSprint(self.body, self.bodyInputs, inputPlayer);
-            }
+            if (PluginConfig.HoldSprintToWalk.Value)
+                enableSprintOverride = inputPlayer.GetButton("Sprint");
+            else if (pcmc.sprintInputPressReceived)
+                enableSprintOverride = !enableSprintOverride;
+
+            if (enableSprintOverride)
+                Instance.HandleSprint(pcmc, isSprinting);
+        }
+
+        private void HandleSprint(PlayerCharacterMasterController pcmc, bool isSprinting)
+        {
+            bool shouldSprint = CanSprintBeEnabled(pcmc.body, out var sprintDelayTime);
+
+            if (sprintDelayTime > 0)
+                timer = sprintDelayTime;
+
+            if (timer > 0)
+                timer -= Time.fixedDeltaTime;
+            else if (!isSprinting)
+                pcmc.sprintInputPressReceived |= shouldSprint;
         }
 
         // Checks if an EntityState blocks sprinting
@@ -129,85 +242,42 @@ namespace AutoSprint
             if (targetBody != cachedBody)
             {
                 cachedBody = targetBody;
-                cachedStates = targetBody.GetComponents<EntityStateMachine>();
+                cachedStateMachines = targetBody.GetComponents<EntityStateMachine>();
             }
 
-            bool canSprint = true;
             sprintDelayTime = 0f;
-            for (int i = 0; i < cachedStates.Length; i++)
+
+            for (int i = 0; i < cachedStateMachines.Length; i++)
             {
-                var currentState = cachedStates[i];
-                if (currentState && !currentState.IsInMainState())
+                var stateMachine = cachedStateMachines[i];
+                if (stateMachine && stateMachine.state is not null)
                 {
-                    var stateName = currentState.state.ToString();
-                    if (sprintDisabledList.Contains(stateName))
-                        canSprint = false;
-                    else if (animDelayList.TryGetValue(stateName, out var field) && field != null && field.GetValue(currentState.state) is float duration)
-                        sprintDelayTime = Mathf.Max(sprintDelayTime, duration);
+                    var stateIndex = EntityStateCatalog.GetStateIndex(stateMachine.state.GetType());
+                    if (sprintDisabledSet.Contains(stateIndex))
+                    {
+                        sprintDelayTime = Mathf.Max(sprintDelayTime, AnimationExitDelay);
+                    }
+                    else if (animDelayList.ContainsKey(stateIndex))
+                    {
+                        float duration = GetDuration(animDelayList[stateIndex], stateMachine.state);
+                        sprintDelayTime = Mathf.Max(sprintDelayTime, duration - stateMachine.state.fixedAge);
+                    }
                 }
             }
 
-            return canSprint;
+            return sprintDelayTime != 0f;
         }
 
-        private bool IsKeyPressed(Player inputPlayer) => 
-            inputPlayer.GetButton("PrimarySkill") || !inputPlayer.GetButton("SecondarySkill") ||
-            inputPlayer.GetButton("SpecialSkill") || inputPlayer.GetButton("UtilitySkill");
-
-        public void HandleSprint(CharacterBody body, InputBankTest bodyInputs, Player inputPlayer)
+        private float GetDuration(object field, EntityState state)
         {
-            bool shouldSprint = body.isSprinting;
-            bool canSprint = CanSprintBeEnabled(body, out var sprintDelayTime);
+            if (field is float duration)
+                return duration;
 
-            if (!shouldSprint)
-            {
-                timer += Time.deltaTime;
-                if (!waitForAnimation)
-                {
-                    timer = -sprintDelayTime;
-                }
-                if (timer >= 0)
-                {
-                    shouldSprint = canSprint;
-                    waitForAnimation = false;
-                    timer = 0;
-                }
-            }
-            else
-            {
-                timer = 0;
-            }
+            if (field is FieldInfo info && info.FieldType == typeof(float) && info.DeclaringType.IsAssignableFrom(state.GetType()))
+                return (float)info.GetValue(state);
 
-            // Animation cancelling logic.
-            if (!waitForAnimation && timer < ANIM_CANCEL_DELAY && !IsKeyPressed(inputPlayer))
-            {
-                timer = ANIM_CANCEL_DELAY;
-                waitForAnimation = true;
-            }
-
-            // Angle check disables sprinting if the movement angle is too large
-            if (shouldSprint)
-            {
-                var aimDirection = bodyInputs.aimDirection;
-                aimDirection.y = 0f;
-                aimDirection.Normalize();
-                var moveVector = bodyInputs.moveVector;
-                moveVector.y = 0f;
-                moveVector.Normalize();
-                
-                if (!PluginConfig.EnableOmniSprint.Value && !body.bodyFlags.HasFlag(CharacterBody.BodyFlags.SprintAnyDirection) && Vector3.Dot(aimDirection, moveVector) < PlayerCharacterMasterController.sprintMinAimMoveDot)
-                {
-                    shouldSprint = false;
-                }
-            }
-
-            if (PluginConfig.HoldSprintToWalk.Value)
-                enableWalk = inputPlayer.GetButton("Sprint");
-            else if (inputPlayer.GetButtonDown("Sprint"))
-                enableWalk = !enableWalk;
-
-            if (!enableWalk)
-                bodyInputs.sprint.PushState(shouldSprint);
+            Log.Error($"Field is invalid, default is ~0.1s delay. {state.GetType().FullName}");
+            return 0f;
         }
 
     } // End of class RTAutoSprintEx

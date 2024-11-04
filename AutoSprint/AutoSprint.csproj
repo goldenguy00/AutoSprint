@@ -30,7 +30,7 @@
   </ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Command="copy /Y &quot;$(TargetDir)$(TargetName).dll&quot; &quot;$(SolutionDir)Release\$(TargetName).dll&quot;&#xD;&#xA;if exist $(SolutionDir)Release\Release.zip ( Del $(SolutionDir)Release\Release.zip)&#xD;&#xA;powershell Compress-Archive -Path '$(SolutionDir)Release\*.*' -DestinationPath '$(SolutionDir)Release\Release.zip' -Force" />
+		<Exec Command="copy /Y &quot;$(TargetDir)$(TargetName).dll&quot; &quot;$(SolutionDir)Release\$(TargetName).dll&quot;&#xD;&#xA;copy /Y &quot;$(TargetDir)$(TargetName).pdb&quot; &quot;$(SolutionDir)Release\$(TargetName).pdb&quot;&#xD;&#xA;if exist $(SolutionDir)Release\Release.zip ( Del $(SolutionDir)Release\Release.zip)&#xD;&#xA;powershell Compress-Archive -Path '$(SolutionDir)Release\*.*' -DestinationPath '$(SolutionDir)Release\Release.zip' -Force" />
 	</Target>
 
 </Project>

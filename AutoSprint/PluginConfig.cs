@@ -9,7 +9,9 @@ namespace AutoSprint
         public static ConfigFile myConfig;
         public static ConfigEntry<bool> HoldSprintToWalk { get; set; }
         public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
+        public static ConfigEntry<int> DelayTicks { get; set; }
         public static ConfigEntry<string> DisableSprintingCustomList { get; set; }
+        public static ConfigEntry<string> DisableSprintingCustomList2 { get; set; }
         public static ConfigEntry<bool> EnableOmniSprint { get; set; }
 
         public static void Init(ConfigFile cfg)
@@ -28,6 +30,21 @@ namespace AutoSprint
                 true,
                 "Disables the special sprinting chevron crosshair.");
 
+            EnableOmniSprint = BindOption(
+                "General",
+                "Enable OmniSprint",
+                false,
+                "Allows sprinting in all directions. This is generally considered cheating, use with discretion.");
+
+            DelayTicks = BindOption(
+                "General",
+                "DelayTicks",
+                3,
+                "How long to wait before sprinting. A tick == 60hz == 16ms");
+
+
+            //  advanced
+
             DisableSprintingCustomList = BindOption(
                 "General",
                 "Disable Sprint Custom List",
@@ -37,12 +54,15 @@ namespace AutoSprint
                 "\r\nMany skills have multiple states, so it may help to pause while doing this." +
                 "\r\n\r\nExample -> PaladinMod.States.Spell.ChannelCruelSun");
 
+            DisableSprintingCustomList2 = BindOption(
+                "Advanced",
+                "Disable Sprint With Duration List",
+                "(EntityStates.Croco.Slash, durationBeforeInterruptable) (EntityStates.Toolbot.ToolbotDualWieldStart, 0.9)",
+                "(typeFullName, fieldName) --or-- (typeFullName, ###)\r\n\r\n" +
+                "Example: (EntityStates.Toolbot.ToolbotDualWieldStart, baseDuration)\r\n" +
+                " --or--  (EntityStates.Toolbot.ToolbotDualWieldStart, 0.75)",
+                true);
 
-            EnableOmniSprint = BindOption(
-                "General",
-                "Enable OmniSprint",
-                false,
-                "Allows sprinting in all directions. This is generally considered cheating, use with discretion.");
         } // End of SetupConfiguration()
 
         #region Config Binding
