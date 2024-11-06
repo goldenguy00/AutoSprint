@@ -10,9 +10,11 @@ namespace AutoSprint
         public static ConfigEntry<bool> HoldSprintToWalk { get; set; }
         public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
         public static ConfigEntry<int> DelayTicks { get; set; }
+        public static ConfigEntry<bool> EnableOmniSprint { get; set; }
+        public static ConfigEntry<bool> EnableDebugMode { get; set; }
+        public static ConfigEntry<string> DisabledBodies { get; set; }
         public static ConfigEntry<string> DisableSprintingCustomList { get; set; }
         public static ConfigEntry<string> DisableSprintingCustomList2 { get; set; }
-        public static ConfigEntry<bool> EnableOmniSprint { get; set; }
 
         public static void Init(ConfigFile cfg)
         {
@@ -42,11 +44,22 @@ namespace AutoSprint
                 3,
                 "How long to wait before sprinting. A tick == 60hz == 16ms");
 
+            EnableDebugMode = BindOption(
+                "General",
+                "Enable Debug Mode",
+                false,
+                "Prints every entity state that your character changes to.");
 
             //  advanced
 
+            DisabledBodies = BindOption(
+                "Advanced",
+                "Disable Body",
+                "",
+                "Custom body name list, has to match body catalog name.");
+
             DisableSprintingCustomList = BindOption(
-                "General",
+                "Advanced",
                 "Disable Sprint Custom List",
                 "",
                 "Custom EntityState list for when broken things break, separated by commas." +
@@ -60,8 +73,7 @@ namespace AutoSprint
                 "(EntityStates.Croco.Slash, durationBeforeInterruptable) (EntityStates.Toolbot.ToolbotDualWieldStart, 0.9)",
                 "(typeFullName, fieldName) --or-- (typeFullName, ###)\r\n\r\n" +
                 "Example: (EntityStates.Toolbot.ToolbotDualWieldStart, baseDuration)\r\n" +
-                " --or--  (EntityStates.Toolbot.ToolbotDualWieldStart, 0.75)",
-                true);
+                " --or--  (EntityStates.Toolbot.ToolbotDualWieldStart, 0.75)");
 
         } // End of SetupConfiguration()
 

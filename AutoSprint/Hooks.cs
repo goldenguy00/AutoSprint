@@ -16,11 +16,39 @@ namespace AutoSprint
 
         private Hooks()
         {
+            EnableDebugMode_SettingChanged(null, null);
+            PluginConfig.EnableDebugMode.SettingChanged += EnableDebugMode_SettingChanged;
             On.RoR2.EntityStateCatalog.Init += EntityStateCatalog_Init;
             On.RoR2.Skills.SkillCatalog.Init += SkillCatalog_Init;
 
             IL.RoR2.PlayerCharacterMasterController.PollButtonInput += PlayerCharacterMasterController_PollButtonInput;
             IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
+        }
+        private static bool hooksEnabled;
+        private static void EnableDebugMode_SettingChanged(object sender, EventArgs e)
+        {
+            if (PluginConfig.EnableDebugMode.Value)
+            {
+                if (!hooksEnabled)
+                {
+                    On.EntityStates.EntityState.OnEnter += EntityState_OnEnter;
+                    hooksEnabled = true;
+                }
+            }
+            else
+            {
+                if (hooksEnabled)
+                {
+                    On.EntityStates.EntityState.OnEnter -= EntityState_OnEnter;
+                    hooksEnabled = false;
+                }
+            }
+        }
+        private static void EntityState_OnEnter(On.EntityStates.EntityState.orig_OnEnter orig, EntityStates.EntityState self)
+        {
+            orig(self);
+            if (self.characterBody && self.characterBody == AutoSprintManager.Instance?.cachedBody)
+                Log.Info(self.GetType().FullName);
         }
 
         private static void PlayerCharacterMasterController_PollButtonInput(ILContext il)
@@ -33,14 +61,14 @@ namespace AutoSprint
                     x => x.MatchLdarg(0),
                     x => x.MatchCallOrCallvirt(AccessTools.PropertyGetter(typeof(PlayerCharacterMasterController), nameof(PlayerCharacterMasterController.networkUser))),
                     x => x.MatchLdloca(out _),
-                    x => x.MatchLdloca(out playerLoc) &&
+                    x => x.MatchLdloca(out playerLoc)) &&
                 c.TryGotoNext(MoveType.After,
                     x => x.MatchLdarg(0),
                     x => x.MatchLdfld<PlayerCharacterMasterController>(nameof(PlayerCharacterMasterController.body)),
                     x => x.MatchCallOrCallvirt(AccessTools.PropertyGetter(typeof(CharacterBody), nameof(CharacterBody.isSprinting)))) &&
                 c.TryGotoNext(MoveType.After,
                     x => x.MatchStloc(out isSprintingLoc)
-                )))
+                ))
             {
                 c.Emit(OpCodes.Ldarg_0);
                 c.Emit(OpCodes.Ldloc, playerLoc);

@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Collections;
 using System.Linq;
 using EntityStates;
+using System.Diagnostics;
 
 namespace AutoSprint
 {
@@ -21,7 +22,7 @@ namespace AutoSprint
 
         internal static readonly Dictionary<string, EntityStateIndex> typeFullNameToStateIndex = [];
 
-        public float AnimationExitDelay => PluginConfig.DelayTicks.Value;
+        public float AnimationExitDelay => PluginConfig.DelayTicks.Value * Time.fixedDeltaTime;
 
         public CharacterBody cachedBody;
         public EntityStateMachine[] cachedStateMachines;
@@ -44,6 +45,12 @@ namespace AutoSprint
             Instance.UpdateSprintDisabledList2(null, null);
             PluginConfig.DisableSprintingCustomList.SettingChanged += Instance.UpdateSprintDisabledList;
             PluginConfig.DisableSprintingCustomList2.SettingChanged += Instance.UpdateSprintDisabledList2;
+
+            BodyCatalog.availability.CallWhenAvailable(() =>
+            {
+                Instance.UpdateBodyDisabledList(null, null);
+                PluginConfig.DisableSprintingCustomList.SettingChanged += Instance.UpdateBodyDisabledList;
+            });
         }
 
         public void AddItem(string typeFullName, string fieldName)
@@ -141,11 +148,32 @@ namespace AutoSprint
                     if (pair.Length == 2)
                     {
                         AddItem(pair[0], pair[1]);
-                        Log.Info($"Successfully added {pair[0]} | {pair[1]}");
                     }
                     else
                     {
                         Log.Info($"{stateString} is not in the valid (key, value) pair format, skipping...");
+                    }
+                }
+            }
+        }
+
+        private void UpdateBodyDisabledList(object _, EventArgs __)
+        {
+            disabledBodies.Clear();
+            if (!string.IsNullOrWhiteSpace(PluginConfig.DisabledBodies.Value) && BodyCatalog.availability.available)
+            {
+                var bodies = PluginConfig.DisabledBodies.Value.Split(',');
+                foreach (var item in bodies)
+                {
+                    var index = BodyCatalog.FindBodyIndex(item);
+                    if (index != BodyIndex.None)
+                    {
+                        disabledBodies.Add(index);
+                        Log.Info($"{item} added to the disabled bodies list.");
+                    }
+                    else
+                    {
+                        Log.Warning($"{item} is not a valid body, skipping...");
                     }
                 }
             }
@@ -211,41 +239,58 @@ namespace AutoSprint
 
         public static void Sprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
         {
-            if (Instance is null || inputPlayer is null || disabledBodies.Contains(pcmc.body.bodyIndex))
+            if (Instance is null || disabledBodies.Contains(pcmc.body.bodyIndex))
                 return;
 
             if (PluginConfig.HoldSprintToWalk.Value)
-                enableSprintOverride = inputPlayer.GetButton("Sprint");
+                enableSprintOverride = !inputPlayer.GetButton("Sprint");
             else if (pcmc.sprintInputPressReceived)
                 enableSprintOverride = !enableSprintOverride;
 
-            if (enableSprintOverride)
-                Instance.HandleSprint(pcmc, isSprinting);
+            if (enableSprintOverride && !isSprinting)
+                Instance.HandleSprint(pcmc);
+            else
+                Instance.timer = 0f;
         }
-
-        private void HandleSprint(PlayerCharacterMasterController pcmc, bool isSprinting)
+        private readonly Stopwatch stopwatch = new();
+        private readonly List<TimeSpan> times = new(110);
+        private void HandleSprint(PlayerCharacterMasterController pcmc)
         {
+            stopwatch.Start();
             bool shouldSprint = CanSprintBeEnabled(pcmc.body, out var sprintDelayTime);
 
-            if (sprintDelayTime > 0)
+            if (!shouldSprint)
                 timer = sprintDelayTime;
 
             if (timer > 0)
                 timer -= Time.fixedDeltaTime;
-            else if (!isSprinting)
+            else
                 pcmc.sprintInputPressReceived |= shouldSprint;
+
+            stopwatch.Stop();
+            times.Add(stopwatch.Elapsed);
+            stopwatch.Reset();
+            if (times.Count > 100)
+            {
+                var average = TimeSpan.FromTicks((long)times.Average(t => t.Ticks)).TotalMilliseconds;
+                Log.Debug("Time: " + ((int)(average * 100) / 100));
+                times.Clear();
+            }
         }
 
         // Checks if an EntityState blocks sprinting
         private bool CanSprintBeEnabled(CharacterBody targetBody, out float sprintDelayTime)
         {
+            sprintDelayTime = 0f;
+
             if (targetBody != cachedBody)
             {
+                if (PluginConfig.EnableDebugMode.Value)
+                    Log.Info(targetBody.baseNameToken);
+
                 cachedBody = targetBody;
                 cachedStateMachines = targetBody.GetComponents<EntityStateMachine>();
             }
-
-            sprintDelayTime = 0f;
 
             for (int i = 0; i < cachedStateMachines.Length; i++)
             {
@@ -255,17 +300,21 @@ namespace AutoSprint
                     var stateIndex = EntityStateCatalog.GetStateIndex(stateMachine.state.GetType());
                     if (sprintDisabledSet.Contains(stateIndex))
                     {
+                        if (PluginConfig.EnableDebugMode.Value)
+                            Log.Info(EntityStateCatalog.GetStateTypeName(stateIndex));
                         sprintDelayTime = Mathf.Max(sprintDelayTime, AnimationExitDelay);
                     }
                     else if (animDelayList.ContainsKey(stateIndex))
                     {
+                        if (PluginConfig.EnableDebugMode.Value)
+                            Log.Info(EntityStateCatalog.GetStateTypeName(stateIndex));
                         float duration = GetDuration(animDelayList[stateIndex], stateMachine.state);
-                        sprintDelayTime = Mathf.Max(sprintDelayTime, duration - stateMachine.state.fixedAge);
+                        sprintDelayTime = Mathf.Max(sprintDelayTime, duration - stateMachine.state.fixedAge + AnimationExitDelay);
                     }
                 }
             }
 
-            return sprintDelayTime != 0f;
+            return sprintDelayTime == 0f;
         }
 
         private float GetDuration(object field, EntityState state)
