@@ -14,20 +14,31 @@ namespace AutoSprint
 {
     public class AutoSprintManager
     {
-        internal static readonly HashSet<BodyIndex> disabledBodies = [];
-        internal static readonly HashSet<string> sprintDisabledList = [];
+        #region Static members
+        /// <summary>
+        /// Key-Value pair of (EntityStateIndex, float) --or-- (EntityStateIndex, FieldInfo)
+        /// </summary>
+        public static readonly Hashtable animDelayList = [];
 
-        internal static readonly HashSet<EntityStateIndex> sprintDisabledSet = [];
-        internal static readonly Hashtable animDelayList = [];
+        /// <summary>
+        /// This list of strings is later converted to indexes, since it gets populated before the entitystate catalog exists
+        /// Also, its a good way to store non-user generated states seperately for whenever the list is regenerated
+        /// Also, its a great way to add soft compat without worrying about missing references
+        /// </summary>
+        public static readonly HashSet<string> sprintDisabledList = [];
+        public static readonly HashSet<EntityStateIndex> sprintDisabledSet = [];
 
-        internal static readonly Dictionary<string, EntityStateIndex> typeFullNameToStateIndex = [];
+        public static readonly HashSet<BodyIndex> disabledBodies = [];
+
+        public static readonly Dictionary<string, EntityStateIndex> typeFullNameToStateIndex = [];
+
+        public static bool enableSprintOverride = true;
+        #endregion
 
         public float AnimationExitDelay => PluginConfig.DelayTicks.Value * Time.fixedDeltaTime;
 
         public CharacterBody cachedBody;
         public EntityStateMachine[] cachedStateMachines;
-
-        public static bool enableSprintOverride = true;
 
         public float timer;
 
@@ -37,20 +48,22 @@ namespace AutoSprint
 
         private AutoSprintManager()
         {
+            BodyCatalog.availability.CallWhenAvailable(() =>
+            {
+                this.UpdateBodyDisabledList(null, null);
+                PluginConfig.DisableSprintingCustomList.SettingChanged += Instance.UpdateBodyDisabledList;
+            });
         }
 
+        /// <summary>
+        /// EntityStateCatalog must exist before calling this!
+        /// </summary>
         public static void OnLoad()
         {
             Instance.UpdateSprintDisabledList(null, null);
             Instance.UpdateSprintDisabledList2(null, null);
             PluginConfig.DisableSprintingCustomList.SettingChanged += Instance.UpdateSprintDisabledList;
             PluginConfig.DisableSprintingCustomList2.SettingChanged += Instance.UpdateSprintDisabledList2;
-
-            BodyCatalog.availability.CallWhenAvailable(() =>
-            {
-                Instance.UpdateBodyDisabledList(null, null);
-                PluginConfig.DisableSprintingCustomList.SettingChanged += Instance.UpdateBodyDisabledList;
-            });
         }
 
         public void AddItem(string typeFullName, string fieldName)
@@ -61,16 +74,7 @@ namespace AutoSprint
 
                 if (type != null)
                 {
-                    var field = AccessTools.DeclaredField(type, fieldName);
-                    if (field != null)
-                    {
-                        animDelayList[index] = field;
-                        Log.Info($"Type: {typeFullName} | Field: {fieldName} | Has been added to the custom entity state list.");
-                    }
-                    else
-                    {
-                        Log.Error($"Type: {typeFullName} | Field: {fieldName} | The field does not exist in this type.");
-                    }
+                    AddItem(type, fieldName);
                 }
                 else
                 {
@@ -87,48 +91,70 @@ namespace AutoSprint
         {
             if (typeFullNameToStateIndex.TryGetValue(typeof(T).FullName, out var index))
             {
-                var field = AccessTools.DeclaredField(typeof(T), name);
-
-                if (field is null)
+                if (float.TryParse((name ?? "0").Replace(" ", string.Empty), out var val))
                 {
-                    Log.Error($"\r\nField is null. Attempting to add numeric...\r\n{typeof(T).FullName} : {name ?? "NULL"}");
-                    AddItemWithValue<T>(name ?? "0");
-                }
-                else if (field.FieldType != typeof(float))
-                {
-                    Log.Error($"\r\nField must be a float\r\n{typeof(T).FullName} : {field.Name}");
-                    AddItemWithValue<T>(name ?? "0");
+                    Log.Info($"Type: {typeof(T).FullName} | Field: {val} | Has been added to the custom entity state list.");
+                    animDelayList[index] = val;
                 }
                 else
                 {
-                    if (animDelayList.ContainsKey(index))
-                        Log.Warning($"\r\nOverwriting duplicate entry\r\n{typeof(T).FullName} : {field.Name}\r\nold {animDelayList[index]?.ToString() ?? "NULL"} | new {field.Name}");
+                    var field = AccessTools.DeclaredField(typeof(T), name);
+                    if (field is null)
+                    {
+                        Log.Error($"\r\nField with that name could not be found and wasnt able to parse the value as numeric. Type not added.\r\n{typeof(T).FullName} : {name ?? "NULL"}");
+                    }
+                    else if (field.FieldType != typeof(float))
+                    {
+                        Log.Error($"\r\nField must be a float, but the field does exist. Type not added.\r\n{typeof(T).FullName} : {field.Name}");
+                    }
                     else
-                        Log.Info($"Type: {typeof(T).FullName} | Field: {name} | Has been added to the custom entity state list.");
+                    {
+                        if (animDelayList.ContainsKey(index))
+                            Log.Warning($"\r\nOverwriting duplicate entry\r\n{typeof(T).FullName} : {field.Name}\r\nold {animDelayList[index]?.ToString() ?? "NULL"} | new {field.Name}");
+                        else
+                            Log.Info($"Type: {typeof(T).FullName} | Field: {name} | Has been added to the custom entity state list.");
 
-                    animDelayList[index] = field;
+                        animDelayList[index] = field;
+                    }
                 }
             }
             else
                 Log.Error($"\r\nType name could not be found in the entityStateCatalog\r\n{typeof(T).FullName} : {name}");
         }
 
-        public void AddItemWithValue<T>(string name)
+        public void AddItem(Type T, string name)
         {
-            if (typeFullNameToStateIndex.TryGetValue(typeof(T).FullName, out var index))
+            if (typeFullNameToStateIndex.TryGetValue(T.FullName, out var index))
             {
-                name = (name ?? "0").Replace(" ", string.Empty);
-
-                if (!float.TryParse(name, out var val))
+                if (float.TryParse((name ?? "0").Replace(" ", string.Empty), out var val))
                 {
-                    Log.Error($"\r\nCould not parse the string. value will default to 0\r\n{typeof(T).FullName} : {name}");
-                    val = 0;
+                    Log.Info($"Type: {T.FullName} | Field: {val} | Has been added to the custom entity state list.");
+                    animDelayList[index] = val;
                 }
-                Log.Info($"Type: {typeof(T).FullName} | Field: {name} | Has been added to the custom entity state list.");
-                animDelayList[index] = val;
+                else
+                {
+                    var field = AccessTools.DeclaredField(T, name);
+                    if (field is null)
+                    {
+                        Log.Error($"\r\nField with that name could not be found and wasnt able to parse the value as numeric. Type not added.\r\n{T.FullName} : {name ?? "NULL"}");
+                    }
+                    else if (field.FieldType != typeof(float))
+                    {
+                        Log.Error($"\r\nField must be a float, but the field does exist. Type not added.\r\n{T.FullName} : {field.Name}");
+                    }
+                    else
+                    {
+                        if (animDelayList.ContainsKey(index))
+                            Log.Warning($"\r\nOverwriting duplicate entry\r\n{T.FullName} : {field.Name}\r\nold {animDelayList[index]?.ToString() ?? "NULL"} | new {field.Name}");
+                        else
+                            Log.Info($"Type: {T.FullName} | Field: {name} | Has been added to the custom entity state list.");
+
+                        animDelayList[index] = field;
+                    }
+                }
             }
             else
-                Log.Error($"\r\nType name could not be found in the entityStateCatalog\r\n{typeof(T).FullName} : {name}");
+                Log.Error($"\r\nType name could not be found in the entityStateCatalog\r\n{T.FullName} : {name}");
         }
 
         private void UpdateSprintDisabledList2(object _, EventArgs __)
@@ -160,7 +186,7 @@ namespace AutoSprint
         private void UpdateBodyDisabledList(object _, EventArgs __)
         {
             disabledBodies.Clear();
-            if (!string.IsNullOrWhiteSpace(PluginConfig.DisabledBodies.Value) && BodyCatalog.availability.available)
+            if (!string.IsNullOrWhiteSpace(PluginConfig.DisabledBodies.Value))
             {
                 var bodies = PluginConfig.DisabledBodies.Value.Split(',');
                 foreach (var item in bodies)
@@ -252,11 +278,9 @@ namespace AutoSprint
             else
                 Instance.timer = 0f;
         }
-        private readonly Stopwatch stopwatch = new();
-        private readonly List<TimeSpan> times = new(110);
+
         private void HandleSprint(PlayerCharacterMasterController pcmc)
         {
-            stopwatch.Start();
             bool shouldSprint = CanSprintBeEnabled(pcmc.body, out var sprintDelayTime);
 
             if (!shouldSprint)
@@ -266,27 +290,15 @@ namespace AutoSprint
                 timer -= Time.fixedDeltaTime;
             else
                 pcmc.sprintInputPressReceived |= shouldSprint;
-
-            stopwatch.Stop();
-            times.Add(stopwatch.Elapsed);
-            stopwatch.Reset();
-            if (times.Count > 100)
-            {
-                var average = TimeSpan.FromTicks((long)times.Average(t => t.Ticks)).TotalMilliseconds;
-                Log.Debug("Time: " + ((int)(average * 100) / 100));
-                times.Clear();
-            }
         }
 
-        // Checks if an EntityState blocks sprinting
         private bool CanSprintBeEnabled(CharacterBody targetBody, out float sprintDelayTime)
         {
             sprintDelayTime = 0f;
 
             if (targetBody != cachedBody)
             {
-                if (PluginConfig.EnableDebugMode.Value)
-                    Log.Info(targetBody.baseNameToken);
+                Log.Info(targetBody.baseNameToken);
 
                 cachedBody = targetBody;
                 cachedStateMachines = targetBody.GetComponents<EntityStateMachine>();
@@ -300,14 +312,10 @@ namespace AutoSprint
                     var stateIndex = EntityStateCatalog.GetStateIndex(stateMachine.state.GetType());
                     if (sprintDisabledSet.Contains(stateIndex))
                     {
-                        if (PluginConfig.EnableDebugMode.Value)
-                            Log.Info(EntityStateCatalog.GetStateTypeName(stateIndex));
                         sprintDelayTime = Mathf.Max(sprintDelayTime, AnimationExitDelay);
                     }
                     else if (animDelayList.ContainsKey(stateIndex))
                     {
-                        if (PluginConfig.EnableDebugMode.Value)
-                            Log.Info(EntityStateCatalog.GetStateTypeName(stateIndex));
                         float duration = GetDuration(animDelayList[stateIndex], stateMachine.state);
                         sprintDelayTime = Mathf.Max(sprintDelayTime, duration - stateMachine.state.fixedAge + AnimationExitDelay);
                     }
