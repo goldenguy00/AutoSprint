@@ -93,7 +93,7 @@ namespace AutoSprint
             {
                 if (float.TryParse((name ?? "0").Replace(" ", string.Empty), out var val))
                 {
-                    Log.Info($"Type: {typeof(T).FullName} | Field: {val} | Has been added to the custom entity state list.");
+                    Log.Message($"Type: {typeof(T).FullName} | Field: {val} | Has been added to the custom entity state list.");
                     animDelayList[index] = val;
                 }
                 else
@@ -112,7 +112,7 @@ namespace AutoSprint
                         if (animDelayList.ContainsKey(index))
                             Log.Warning($"\r\nOverwriting duplicate entry\r\n{typeof(T).FullName} : {field.Name}\r\nold {animDelayList[index]?.ToString() ?? "NULL"} | new {field.Name}");
                         else
-                            Log.Info($"Type: {typeof(T).FullName} | Field: {name} | Has been added to the custom entity state list.");
+                            Log.Message($"Type: {typeof(T).FullName} | Field: {name} | Has been added to the custom entity state list.");
 
                         animDelayList[index] = field;
                     }
@@ -128,7 +128,7 @@ namespace AutoSprint
             {
                 if (float.TryParse((name ?? "0").Replace(" ", string.Empty), out var val))
                 {
-                    Log.Info($"Type: {T.FullName} | Field: {val} | Has been added to the custom entity state list.");
+                    Log.Message($"Type: {T.FullName} | Field: {val} | Has been added to the custom entity state list.");
                     animDelayList[index] = val;
                 }
                 else
@@ -147,7 +147,7 @@ namespace AutoSprint
                         if (animDelayList.ContainsKey(index))
                             Log.Warning($"\r\nOverwriting duplicate entry\r\n{T.FullName} : {field.Name}\r\nold {animDelayList[index]?.ToString() ?? "NULL"} | new {field.Name}");
                         else
-                            Log.Info($"Type: {T.FullName} | Field: {name} | Has been added to the custom entity state list.");
+                            Log.Message($"Type: {T.FullName} | Field: {name} | Has been added to the custom entity state list.");
 
                         animDelayList[index] = field;
                     }
@@ -177,7 +177,7 @@ namespace AutoSprint
                     }
                     else
                     {
-                        Log.Info($"{stateString} is not in the valid (key, value) pair format, skipping...");
+                        Log.Warning($"{stateString} is not in the valid (key, value) pair format, skipping...");
                     }
                 }
             }
@@ -186,21 +186,25 @@ namespace AutoSprint
         private void UpdateBodyDisabledList(object _, EventArgs __)
         {
             disabledBodies.Clear();
-            if (!string.IsNullOrWhiteSpace(PluginConfig.DisabledBodies.Value))
+            List<string> bodies = ["JohnnyBody", "PantheraBody", "RA2ChronoBody"];
+
+            foreach (var item in PluginConfig.DisabledBodies.Value.Replace(" ", string.Empty).Split(','))
             {
-                var bodies = PluginConfig.DisabledBodies.Value.Split(',');
-                foreach (var item in bodies)
+                if (!string.IsNullOrEmpty(item))
+                    bodies.Add(item);
+            }
+
+            foreach (var item in bodies)
+            {
+                var index = BodyCatalog.FindBodyIndex(item);
+                if (index != BodyIndex.None)
                 {
-                    var index = BodyCatalog.FindBodyIndex(item);
-                    if (index != BodyIndex.None)
-                    {
-                        disabledBodies.Add(index);
-                        Log.Info($"{item} added to the disabled bodies list.");
-                    }
-                    else
-                    {
-                        Log.Warning($"{item} is not a valid body, skipping...");
-                    }
+                    disabledBodies.Add(index);
+                    Log.Message($"{item} added to the disabled bodies list.");
+                }
+                else
+                {
+                    Log.Warning($"{item} is not a valid body, skipping...");
                 }
             }
         }
@@ -214,7 +218,7 @@ namespace AutoSprint
                 if (typeFullNameToStateIndex.TryGetValue(item, out var index))
                 {
                     sprintDisabledSet.Add(index);
-                    Log.Info($"{item} added to the custom entity state list.");
+                    Log.Debug($"{item} added to the custom entity state list.");
                 }
                 else
                 {
@@ -236,10 +240,8 @@ namespace AutoSprint
                 "PaladinMod.States.Spell.CastChanneledWarcry",
                 "PaladinMod.States.Spell.CastChanneledTorpor",
                 "PaladinMod.States.Spell.CastChanneledHealZone",
-                "RA2Mod.Survivors.Chrono.States.ChronoCharacterMain",
             ];
 
-            // lazy paladin/lee compat
             var states = PluginConfig.DisableSprintingCustomList.Value.Replace(" ", string.Empty).Split(',');
             foreach (var state in states)
             {
@@ -298,7 +300,7 @@ namespace AutoSprint
 
             if (targetBody != cachedBody)
             {
-                Log.Info(targetBody.baseNameToken);
+                Log.Info(BodyCatalog.GetBodyName(targetBody.bodyIndex));
 
                 cachedBody = targetBody;
                 cachedStateMachines = targetBody.GetComponents<EntityStateMachine>();
