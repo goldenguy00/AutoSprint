@@ -1,3 +1,4 @@
+using System.IO;
 using BepInEx;
 using BepInEx.Bootstrap;
 
@@ -10,11 +11,13 @@ namespace AutoSprint
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "AutoSprint";
-        public const string PluginVersion = "1.3.4";
+        public const string PluginVersion = "1.4.0";
 
-        public static bool RooInstalled => Chainloader.PluginInfos.ContainsKey("com.rune580.riskofoptions");
+        internal static bool RooInstalled => Chainloader.PluginInfos.ContainsKey("com.rune580.riskofoptions");
 
         public static AutoSprintPlugin Instance { get; private set; }
+
+        internal string DirectoryName => Path.GetDirectoryName(Info.Location);
 
         public void Awake()
         {

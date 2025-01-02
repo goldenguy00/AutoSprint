@@ -1,15 +1,18 @@
 ﻿using System;
+using System.IO;
 using System.Runtime.CompilerServices;
 using BepInEx.Configuration;
+using UnityEngine;
 
 namespace AutoSprint
 {
     internal static class PluginConfig
     {
         // CONFIGURATION
-        public static ConfigFile myConfig;
         public static ConfigEntry<bool> HoldSprintToWalk { get; set; }
         public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
+        public static ConfigEntry<bool> DisableSprintingFOV { get; set; }
+        public static ConfigEntry<bool> ForceSprintingFOV { get; set; }
         public static ConfigEntry<int> DelayTicks { get; set; }
         public static ConfigEntry<bool> EnableOmniSprint { get; set; }
         public static ConfigEntry<bool> EnableDebugMode { get; set; }
@@ -19,57 +22,71 @@ namespace AutoSprint
 
         public static void Init(ConfigFile cfg)
         {
-            myConfig = cfg;
+            if (AutoSprintPlugin.RooInstalled)
+                InitRoO();
 
-            HoldSprintToWalk = BindOption(
+            HoldSprintToWalk = cfg.BindOption(
                 "General",
                 "Hold Sprint To Walk",
                 true,
                 "Walk by holding down the sprint key. If disabled, makes the Sprint key toggle AutoSprinting functionality on and off.");
 
-            DisableSprintingCrosshair = BindOption(
+            DisableSprintingCrosshair = cfg.BindOption(
                 "General",
                 "Disable Sprinting Crosshair",
                 true,
                 "Disables the special sprinting chevron crosshair.");
 
-            EnableOmniSprint = BindOption(
+            ForceSprintingFOV = cfg.BindOption(
+                "General",
+                "Force Sprinting FOV",
+                true,
+                "Changes the FOV to be constantly set to the 1.3x multiplier. This overrides the \"Disable Sprinting FOV Increase\" setting. Disable both for vanilla behavior.");
+
+            DisableSprintingFOV = cfg.BindOption(
+                "General",
+                "Disable Sprinting FOV Increase",
+                false,
+                "Disables the change in FOV when sprinting. This setting requires the \"Force Sprinting FOV\" to be disabled for it to have any effect. Disable both for vanilla behavior.");
+
+            EnableOmniSprint = cfg.BindOption(
                 "General",
                 "Enable OmniSprint",
                 false,
                 "Allows sprinting in all directions. This is generally considered cheating, use with discretion.");
 
-            DelayTicks = BindOptionSlider(
+            DelayTicks = cfg.BindOptionSlider(
                 "General",
                 "DelayTicks",
                 5,
                 "How long to wait before sprinting. A tick == 60hz == 16ms",
                 0, 60);
 
-            EnableDebugMode = BindOption(
+            EnableDebugMode = cfg.BindOption(
                 "General",
                 "Enable Debug Mode",
                 false,
                 "Prints every entity state that your character changes to.");
 
+
+
             //  advanced
 
-            DisabledBodies = BindOption(
+            DisabledBodies = cfg.BindOption(
                 "Advanced",
                 "Disable Body",
                 "",
                 "Custom body name list, has to match body catalog name.");
 
-            DisableSprintingCustomList = BindOption(
+            DisableSprintingCustomList = cfg.BindOption(
                 "Advanced",
                 "Disable Sprint Custom List",
-                "",
-                "Custom EntityState list for when broken things break, separated by commas." +
-                "\r\nUse console (Ctrl Alt ~) and enter dump_state to find this info (last couple lines)." +
-                "\r\nMany skills have multiple states, so it may help to pause while doing this." +
-                "\r\n\r\nExample -> PaladinMod.States.Spell.ChannelCruelSun");
+                "EntityStates.Toolbot.ToolbotDualWield,",
+                "Custom EntityState list for when a skill is cancelled by sprinting when it shouldn't, separated by commas." +
+                "\r\nThe Debug Mode cfg option will print the state names to the Bepinex console/log output.\r\n\r\n" +
+                "Example: EntityStates.Toolbot.ToolbotDualWield");
 
-            DisableSprintingCustomList2 = BindOption(
+            DisableSprintingCustomList2 = cfg.BindOption(
                 "Advanced",
                 "Disable Sprint With Duration List",
                 "(EntityStates.Croco.Slash, durationBeforeInterruptable) (EntityStates.Toolbot.ToolbotDualWieldStart, 0.9)",
@@ -84,10 +101,24 @@ namespace AutoSprint
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static void InitRoO()
         {
-            RiskOfOptions.ModSettingsManager.SetModDescription("AutoSprint, as God intended.");
+            try
+            {
+                RiskOfOptions.ModSettingsManager.SetModDescription("AutoSprint, as God intended.", AutoSprintPlugin.PluginGUID, AutoSprintPlugin.PluginName);
+
+                var iconStream = File.ReadAllBytes(Path.Combine(AutoSprintPlugin.Instance.DirectoryName, "icon.png"));
+                var tex = new Texture2D(256, 256);
+                tex.LoadImage(iconStream);
+                var icon = Sprite.Create(tex, new Rect(0, 0, 256, 256), new Vector2(0.5f, 0.5f));
+
+                RiskOfOptions.ModSettingsManager.SetModIcon(icon);
+            }
+            catch (Exception e)
+            {
+                Log.Debug(e.ToString());
+            }
         }
 
-        public static ConfigEntry<T> BindOption<T>(string section, string name, T defaultValue, string description = "", bool restartRequired = false)
+        public static ConfigEntry<T> BindOption<T>(this ConfigFile myConfig, string section, string name, T defaultValue, string description = "", bool restartRequired = false)
         {
             if (defaultValue is int or float && !typeof(T).IsEnum)
             {
@@ -96,7 +127,7 @@ namespace AutoSprint
                     $"but has been registered without using {nameof(BindOptionSlider)}. " +
                     $"Lower and upper bounds will be set to the defaults [0, 20]. Was this intentional?");
 #endif
-                return BindOptionSlider(section, name, defaultValue, description, 0, 20, restartRequired);
+                return myConfig.BindOptionSlider(section, name, defaultValue, description, 0, 20, restartRequired);
             }
             if (string.IsNullOrEmpty(description))
                 description = name;
@@ -114,7 +145,7 @@ namespace AutoSprint
             return configEntry;
         }
 
-        public static ConfigEntry<T> BindOptionSlider<T>(string section, string name, T defaultValue, string description = "", float min = 0, float max = 20, bool restartRequired = false)
+        public static ConfigEntry<T> BindOptionSlider<T>(this ConfigFile myConfig, string section, string name, T defaultValue, string description = "", float min = 0, float max = 20, bool restartRequired = false)
         {
             if (!(defaultValue is int or float && !typeof(T).IsEnum))
             {
@@ -122,7 +153,7 @@ namespace AutoSprint
                 Log.Warning($"Config entry {name} in section {section} is a not a numeric {typeof(T).Name} type, " +
                     $"but has been registered as a slider option using {nameof(BindOptionSlider)}. Was this intentional?");
 #endif
-                return BindOption(section, name, defaultValue, description, restartRequired);
+                return myConfig.BindOption(section, name, defaultValue, description, restartRequired);
             }
 
             if (string.IsNullOrEmpty(description))
@@ -143,7 +174,7 @@ namespace AutoSprint
 
             return configEntry;
         }
-        public static ConfigEntry<T> BindOptionSteppedSlider<T>(string section, string name, T defaultValue, float increment = 1f, string description = "", float min = 0, float max = 20, bool restartRequired = false)
+        public static ConfigEntry<T> BindOptionSteppedSlider<T>(this ConfigFile myConfig, string section, string name, T defaultValue, float increment = 1f, string description = "", float min = 0, float max = 20, bool restartRequired = false)
         {
             if (string.IsNullOrEmpty(description))
                 description = name;

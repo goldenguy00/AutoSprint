@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections;
+using BepInEx.Configuration;
 using HarmonyLib;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using RoR2;
+using RoR2.CameraModes;
 using RoR2.Skills;
 
 namespace AutoSprint
@@ -14,6 +16,8 @@ namespace AutoSprint
 
         public static void Init() => Instance ??= new Hooks();
 
+        private static bool hooksEnabled;
+
         private Hooks()
         {
             EnableDebugMode_SettingChanged(null, null);
@@ -23,8 +27,38 @@ namespace AutoSprint
 
             IL.RoR2.PlayerCharacterMasterController.PollButtonInput += PlayerCharacterMasterController_PollButtonInput;
             IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
+            IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal;
         }
-        private static bool hooksEnabled;
+
+        private static void CameraModePlayerBasic_UpdateInternal(ILContext il)
+        {
+            var c = new ILCursor(il);
+
+            ILLabel noFovLabel = null;
+            ILCursor[] c1 = null;
+            if (c.TryGotoNext(
+                    x => x.MatchLdarg(out _),
+                    x => x.MatchLdflda<CameraModeBase.CameraModeContext>(nameof(CameraModeBase.CameraModeContext.targetInfo)),
+                    x => x.MatchLdfld<CameraModeBase.TargetInfo>(nameof(CameraModeBase.TargetInfo.isSprinting))) &&
+                c.TryFindNext(out c1,
+                    x => x.MatchBrfalse(out noFovLabel)
+                ))
+            {
+                c1[0].Index++;
+                var setFovLabel = c1[0].MarkLabel();
+
+                c.Emit(OpCodes.Call, AccessTools.PropertyGetter(typeof(PluginConfig), nameof(PluginConfig.ForceSprintingFOV)));
+                c.Emit(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value)));
+                c.Emit(OpCodes.Brtrue, setFovLabel);
+
+                c.Emit(OpCodes.Call, AccessTools.PropertyGetter(typeof(PluginConfig), nameof(PluginConfig.DisableSprintingFOV)));
+                c.Emit(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value)));
+                c.Emit(OpCodes.Brtrue, noFovLabel);
+            }
+            else
+                Log.Error("ILHook failed for CameraModePlayerBasic_UpdateInternal");
+        }
+
         private static void EnableDebugMode_SettingChanged(object sender, EventArgs e)
         {
             if (PluginConfig.EnableDebugMode.Value)
@@ -44,6 +78,7 @@ namespace AutoSprint
                 }
             }
         }
+
         private static void EntityState_OnEnter(On.EntityStates.EntityState.orig_OnEnter orig, EntityStates.EntityState self)
         {
             orig(self);
@@ -132,7 +167,7 @@ namespace AutoSprint
 
             foreach (var skill in SkillCatalog.allSkillDefs)
             {
-                if (!skill || skill.forceSprintDuringState || skill.activationState.stateType is null)
+                if (!skill || skill.forceSprintDuringState || skill.activationState.stateType is null || skill.activationState.stateType == typeof(EntityStates.Idle))
                     continue;
 
                 var type = skill.activationState.stateType;
@@ -143,6 +178,7 @@ namespace AutoSprint
             }
 
             AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
+            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldBase).FullName);
 
             AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
 

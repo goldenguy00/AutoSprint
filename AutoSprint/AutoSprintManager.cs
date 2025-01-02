@@ -6,9 +6,7 @@ using HarmonyLib;
 using System;
 using System.Reflection;
 using System.Collections;
-using System.Linq;
 using EntityStates;
-using System.Diagnostics;
 
 namespace AutoSprint
 {
@@ -278,7 +276,7 @@ namespace AutoSprint
             if (enableSprintOverride && !isSprinting)
                 Instance.HandleSprint(pcmc);
             else
-                Instance.timer = 0f;
+                Instance.timer = Instance.AnimationExitDelay;
         }
 
         private void HandleSprint(PlayerCharacterMasterController pcmc)
@@ -316,7 +314,7 @@ namespace AutoSprint
                     {
                         sprintDelayTime = Mathf.Max(sprintDelayTime, AnimationExitDelay);
                     }
-                    else if (animDelayList.ContainsKey(stateIndex))
+                    if (animDelayList.ContainsKey(stateIndex))
                     {
                         float duration = GetDuration(animDelayList[stateIndex], stateMachine.state);
                         sprintDelayTime = Mathf.Max(sprintDelayTime, duration - stateMachine.state.fixedAge + AnimationExitDelay);
