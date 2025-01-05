@@ -118,6 +118,7 @@ namespace AutoSprint
             }
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static ConfigEntry<T> BindOption<T>(this ConfigFile myConfig, string section, string name, T defaultValue, string description = "", bool restartRequired = false)
         {
             if (defaultValue is int or float && !typeof(T).IsEnum)
@@ -140,11 +141,14 @@ namespace AutoSprint
                 range = new AcceptableValueList<string>(Enum.GetNames(typeof(T)));
 
             var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, range));
-            TryRegisterOption(configEntry, restartRequired);
+
+            if (AutoSprintPlugin.RooInstalled)
+                TryRegisterOption(configEntry, restartRequired);
 
             return configEntry;
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static ConfigEntry<T> BindOptionSlider<T>(this ConfigFile myConfig, string section, string name, T defaultValue, string description = "", float min = 0, float max = 20, bool restartRequired = false)
         {
             if (!(defaultValue is int or float && !typeof(T).IsEnum))
@@ -170,10 +174,13 @@ namespace AutoSprint
 
             var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, range));
 
-            TryRegisterOptionSlider(configEntry, min, max, restartRequired);
+            if (AutoSprintPlugin.RooInstalled)
+                TryRegisterOptionSlider(configEntry, min, max, restartRequired);
 
             return configEntry;
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static ConfigEntry<T> BindOptionSteppedSlider<T>(this ConfigFile myConfig, string section, string name, T defaultValue, float increment = 1f, string description = "", float min = 0, float max = 20, bool restartRequired = false)
         {
             if (string.IsNullOrEmpty(description))
@@ -186,13 +193,15 @@ namespace AutoSprint
 
             var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, new AcceptableValueRange<float>(min, max)));
 
-            TryRegisterOptionSteppedSlider(configEntry, increment, min, max, restartRequired);
+            if (AutoSprintPlugin.RooInstalled)
+                TryRegisterOptionSteppedSlider(configEntry, increment, min, max, restartRequired);
 
             return configEntry;
         }
         #endregion
 
         #region RoO
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static void TryRegisterOption<T>(ConfigEntry<T> entry, bool restartRequired)
         {
             if (entry is ConfigEntry<string> stringEntry)
@@ -224,6 +233,7 @@ namespace AutoSprint
             }
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static void TryRegisterOptionSlider<T>(ConfigEntry<T> entry, float min, float max, bool restartRequired)
         {
             if (entry is ConfigEntry<int> intEntry)
@@ -254,6 +264,8 @@ namespace AutoSprint
 #endif
             }
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static void TryRegisterOptionSteppedSlider<T>(ConfigEntry<T> entry, float increment, float min, float max, bool restartRequired)
         {
             if (entry is ConfigEntry<float> floatEntry)
