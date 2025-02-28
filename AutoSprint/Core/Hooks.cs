@@ -8,7 +8,7 @@ using RoR2;
 using RoR2.CameraModes;
 using RoR2.Skills;
 
-namespace AutoSprint
+namespace AutoSprint.Core
 {
     internal class Hooks
     {
@@ -16,18 +16,47 @@ namespace AutoSprint
 
         public static void Init() => Instance ??= new Hooks();
 
-        private static bool hooksEnabled;
+        private bool _hooksEnabled;
 
         private Hooks()
         {
             EnableDebugMode_SettingChanged(null, null);
             PluginConfig.EnableDebugMode.SettingChanged += EnableDebugMode_SettingChanged;
+
+            BodyCatalog.availability.CallWhenAvailable(StateManager.UpdateFromBodyCatalog);
             On.RoR2.EntityStateCatalog.Init += EntityStateCatalog_Init;
             On.RoR2.Skills.SkillCatalog.Init += SkillCatalog_Init;
 
             IL.RoR2.PlayerCharacterMasterController.PollButtonInput += PlayerCharacterMasterController_PollButtonInput;
             IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal;
+        }
+
+        private void EnableDebugMode_SettingChanged(object sender, EventArgs e)
+        {
+            if (_hooksEnabled != PluginConfig.EnableDebugMode.Value)
+            {
+                _hooksEnabled = PluginConfig.EnableDebugMode.Value;
+
+                if (_hooksEnabled)
+                    On.EntityStates.EntityState.OnEnter += EntityState_OnEnter;
+                else
+                    On.EntityStates.EntityState.OnEnter -= EntityState_OnEnter;
+            }
+        }
+
+        private static IEnumerator EntityStateCatalog_Init(On.RoR2.EntityStateCatalog.orig_Init orig)
+        {
+            yield return orig();
+
+            StateManager.UpdateFromEntityStateCatalog();
+        }
+
+        private static void SkillCatalog_Init(On.RoR2.Skills.SkillCatalog.orig_Init orig)
+        {
+            orig();
+
+            StateManager.UpdateFromSkillCatalog();
         }
 
         private static void CameraModePlayerBasic_UpdateInternal(ILContext il)
@@ -56,33 +85,14 @@ namespace AutoSprint
                 c.Emit(OpCodes.Brtrue, noFovLabel);
             }
             else
-                Log.Error("ILHook failed for CameraModePlayerBasic_UpdateInternal");
-        }
-
-        private static void EnableDebugMode_SettingChanged(object sender, EventArgs e)
-        {
-            if (PluginConfig.EnableDebugMode.Value)
-            {
-                if (!hooksEnabled)
-                {
-                    On.EntityStates.EntityState.OnEnter += EntityState_OnEnter;
-                    hooksEnabled = true;
-                }
-            }
-            else
-            {
-                if (hooksEnabled)
-                {
-                    On.EntityStates.EntityState.OnEnter -= EntityState_OnEnter;
-                    hooksEnabled = false;
-                }
-            }
+                Log.Error("AutoSprint IL hook for CameraModePlayerBasic_UpdateInternal failed");
         }
 
         private static void EntityState_OnEnter(On.EntityStates.EntityState.orig_OnEnter orig, EntityStates.EntityState self)
         {
             orig(self);
-            if (self.characterBody && self.characterBody == AutoSprintManager.Instance?.cachedBody)
+
+            if (self.characterBody && self.characterBody == AutoSprintManager.Instance?.CachedBody)
                 Log.Info(self.GetType().FullName);
         }
 
@@ -90,8 +100,8 @@ namespace AutoSprint
         {
             var c = new ILCursor(il);
 
-            int playerLoc = 0;
-            int isSprintingLoc = 0;
+            var playerLoc = 0;
+            var isSprintingLoc = 0;
             if (c.TryGotoNext(MoveType.After,
                     x => x.MatchLdarg(0),
                     x => x.MatchCallOrCallvirt(AccessTools.PropertyGetter(typeof(PlayerCharacterMasterController), nameof(PlayerCharacterMasterController.networkUser))),
@@ -108,27 +118,26 @@ namespace AutoSprint
                 c.Emit(OpCodes.Ldarg_0);
                 c.Emit(OpCodes.Ldloc, playerLoc);
                 c.Emit(OpCodes.Ldloc, isSprintingLoc);
-                c.EmitDelegate(AutoSprintManager.Sprint);
+                c.EmitDelegate(AutoSprintManager.TryHandleSprint);
             }
             else
-            {
-                Log.Error("Autosprint IL hook1 failed");
-            }
+                Log.Error("AutoSprint IL hook for PlayerCharacterMasterController_PollButtonInput failed");
 
             ILLabel label = null;
             if (c.TryGotoNext(MoveType.Before,
                     x => x.MatchLdarg(0),
                     x => x.MatchLdfld<PlayerCharacterMasterController>(nameof(PlayerCharacterMasterController.body)),
                     x => x.MatchLdfld<CharacterBody>(nameof(CharacterBody.bodyFlags)) &&
-                c.TryFindNext(out _, x => x.MatchBrtrue(out label))))
+                c.TryFindNext(out _,
+                    x => x.MatchBrtrue(out label))
+                ))
             {
-                c.EmitDelegate(() => PluginConfig.EnableOmniSprint.Value);
+                c.Emit(OpCodes.Call, AccessTools.PropertyGetter(typeof(PluginConfig), nameof(PluginConfig.EnableOmniSprint)));
+                c.Emit(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value)));
                 c.Emit(OpCodes.Brtrue, label);
             }
             else
-            {
-                Log.Error("Autosprint IL hook failed");
-            }
+                Log.Error("AutoSprint IL hook for PlayerCharacterMasterController_PollButtonInput - Enable Omni Sprint failed");
         }
 
         private static void CrosshairManager_UpdateCrosshair(ILContext il)
@@ -142,56 +151,7 @@ namespace AutoSprint
                 c.EmitDelegate<Func<bool, bool>>((val) => val && !PluginConfig.DisableSprintingCrosshair.Value);
             }
             else
-            {
-                Log.Error("Crosshair IL hook failed");
-            }
-        }
-
-        private static IEnumerator EntityStateCatalog_Init(On.RoR2.EntityStateCatalog.orig_Init orig)
-        {
-            yield return orig();
-
-            for (int k = 0; k < EntityStateCatalog.stateIndexToType.Length; k++)
-            {
-                AutoSprintManager.typeFullNameToStateIndex[EntityStateCatalog.stateIndexToType[k].FullName] = (EntityStateIndex)k;
-            }
-
-            yield return null;
-
-            AutoSprintManager.OnLoad();
-        }
-
-        private static void SkillCatalog_Init(On.RoR2.Skills.SkillCatalog.orig_Init orig)
-        {
-            orig();
-
-            foreach (var skill in SkillCatalog.allSkillDefs)
-            {
-                if (!skill || skill.forceSprintDuringState || skill.activationState.stateType is null || skill.activationState.stateType == typeof(EntityStates.Idle))
-                    continue;
-
-                var type = skill.activationState.stateType;
-                if (skill.canceledFromSprinting)
-                {
-                    AutoSprintManager.sprintDisabledList.Add(type.FullName);
-                }
-            }
-
-            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
-            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldBase).FullName);
-
-            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
-
-            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
-            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeHeavy).FullName);
-            AutoSprintManager.sprintDisabledList.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeLight).FullName);
-
-            AutoSprintManager.sprintDisabledList.Remove(typeof(EntityStates.FalseSon.LaserFather).FullName);
-
-            // AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-            AutoSprintManager.sprintDisabledList.Remove(typeof(EntityStates.Croco.Slash).FullName);
-            AutoSprintManager.sprintDisabledList.Remove(typeof(EntityStates.Croco.Bite).FullName);
+                Log.Error("AutoSprint IL hook for CrosshairManager_UpdateCrosshair failed");
         }
     }
 }
