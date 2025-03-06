@@ -13,6 +13,7 @@ namespace AutoSprint
         public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
         public static ConfigEntry<bool> DisableSprintingFOV { get; set; }
         public static ConfigEntry<bool> ForceSprintingFOV { get; set; }
+        public static ConfigEntry<int> BaseDelayTicks { get; set; }
         public static ConfigEntry<int> DelayTicks { get; set; }
         public static ConfigEntry<bool> EnableOmniSprint { get; set; }
         public static ConfigEntry<bool> EnableDebugMode { get; set; }
@@ -55,11 +56,18 @@ namespace AutoSprint
                 false,
                 "Allows sprinting in all directions. This is generally considered cheating, use with discretion.");
 
+            BaseDelayTicks = cfg.BindOptionSlider(
+                "General",
+                "Base Delay Ticks",
+                5,
+                "How long to wait before sprinting after not sprinting for any reason. A tick == 60hz == 16ms",
+                0, 60);
+
             DelayTicks = cfg.BindOptionSlider(
                 "General",
                 "DelayTicks",
-                5,
-                "How long to wait before sprinting. A tick == 60hz == 16ms",
+                20,
+                "How long to wait before sprinting after being forced into a walk. A tick == 60hz == 16ms",
                 0, 60);
 
             EnableDebugMode = cfg.BindOption(

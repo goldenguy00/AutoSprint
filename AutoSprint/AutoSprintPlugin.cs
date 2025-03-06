@@ -3,6 +3,8 @@ using AutoSprint.Core;
 using BepInEx;
 using BepInEx.Bootstrap;
 
+[assembly: HG.Reflection.SearchableAttribute.OptIn]
+
 namespace AutoSprint
 {
     [BepInDependency("com.rune580.riskofoptions", BepInDependency.DependencyFlags.SoftDependency)]

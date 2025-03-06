@@ -6,7 +6,6 @@ using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using RoR2;
 using RoR2.CameraModes;
-using RoR2.Skills;
 
 namespace AutoSprint.Core
 {

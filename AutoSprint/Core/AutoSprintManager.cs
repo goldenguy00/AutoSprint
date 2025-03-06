@@ -9,7 +9,6 @@ namespace AutoSprint.Core
     public class AutoSprintManager
     {
         public float AnimationExitDelay => PluginConfig.DelayTicks.Value * Time.fixedDeltaTime;
-        public bool ShouldSprintBePressed => _delayTimer <= 0f;
         public CharacterBody CachedBody => _cachedBody;
 
         private CharacterBody _cachedBody;
@@ -26,7 +25,13 @@ namespace AutoSprint.Core
 
         public static void TryHandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
         {
-            if (Instance is null || StateManager.DisabledBodies.Contains(pcmc.body.bodyIndex))
+            if (Instance is null)
+            {
+                Log.Error("You must be fucking retarded, how did you manage that");
+                return;
+            }
+
+            if (StateManager.DisabledBodies.Contains(pcmc.body.bodyIndex))
                 return;
 
             Instance.HandleSprint(pcmc, inputPlayer, isSprinting);
@@ -39,20 +44,20 @@ namespace AutoSprint.Core
             else if (pcmc.sprintInputPressReceived)
                 _enableSprintOverride = !_enableSprintOverride;
 
+            // nothing to do
             if (!_enableSprintOverride || isSprinting)
             {
-                _delayTimer = AnimationExitDelay;
+                _delayTimer = PluginConfig.BaseDelayTicks.Value * Time.fixedDeltaTime;
+                return;
             }
-            else if (!CanSprintBeEnabled(pcmc.body, out var activeDelayTimer))
-            {
+            
+            if (!CanSprintBeEnabled(pcmc.body, out var activeDelayTimer))
                 _delayTimer = activeDelayTimer;
-            }
-
-            if (ShouldSprintBePressed)
-                pcmc.sprintInputPressReceived = true;
 
             if (_delayTimer > 0f)
                 _delayTimer -= Time.fixedDeltaTime;
+            else
+                pcmc.sprintInputPressReceived = true;
         }
 
         private bool CanSprintBeEnabled(CharacterBody targetBody, out float activeDelayTimer)
@@ -70,14 +75,14 @@ namespace AutoSprint.Core
             for (var i = 0; i < _cachedStateMachines.Length; i++)
             {
                 var stateMachine = _cachedStateMachines[i];
-                if (stateMachine && stateMachine.state is not null)
+                if (stateMachine?.state is not null)
                 {
                     var stateIndex = EntityStateCatalog.GetStateIndex(stateMachine.state.GetType());
 
                     if (StateManager.EntityStateDisabledSet.Contains(stateIndex))
                         activeDelayTimer = Mathf.Max(activeDelayTimer, AnimationExitDelay);
 
-                    if (StateManager.EntityStateDelayMap.ContainsKey(stateIndex))
+                    if (StateManager.EntityStateDelayTable.ContainsKey(stateIndex))
                         activeDelayTimer = Mathf.Max(activeDelayTimer, GetDurationRemaining(stateMachine.state, stateIndex));
                 }
             }
@@ -87,10 +92,10 @@ namespace AutoSprint.Core
 
         private float GetDurationRemaining(EntityState state, EntityStateIndex stateIndex)
         {
-            if (StateManager.EntityStateDelayMap[stateIndex] is float duration)
+            if (StateManager.EntityStateDelayTable[stateIndex] is float duration)
                 return AnimationExitDelay + (duration - state.fixedAge);
 
-            if (StateManager.EntityStateDelayMap[stateIndex] is FieldInfo info && info.FieldType == typeof(float) && info.DeclaringType.IsAssignableFrom(state.GetType()))
+            if (StateManager.EntityStateDelayTable[stateIndex] is FieldInfo info && info.FieldType == typeof(float) && info.DeclaringType.IsAssignableFrom(state.GetType()))
                 return AnimationExitDelay + ((float)info.GetValue(state) - state.fixedAge);
 
             Log.Error($"Field for {state.GetType().FullName} is invalid, default is delay is {AnimationExitDelay}.");

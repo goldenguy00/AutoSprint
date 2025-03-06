@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Xml.Linq;
 using HarmonyLib;
 using RoR2;
 using RoR2.Skills;
@@ -15,7 +13,7 @@ namespace AutoSprint.Core
         /// Key-Value pair of (EntityStateIndex, float) --or-- (EntityStateIndex, FieldInfo)
         /// </summary>
         public static readonly HashSet<(string, string)> SprintDelayTypeValuePairs = [];
-        public static readonly Hashtable EntityStateDelayMap = [];
+        public static readonly Hashtable EntityStateDelayTable = [];
 
         /// <summary>
         /// This list of strings is later converted to indexes, since it gets populated before the entitystate catalog exists
@@ -56,15 +54,14 @@ namespace AutoSprint.Core
                     continue;
 
                 var type = skill.activationState.stateType;
-                if (type is null || type == typeof(EntityStates.Idle))
+                if (type is null || type == typeof(EntityStates.Idle) || type.IsSubclassOf(typeof(EntityStates.Idle)))
                     continue;
 
                 if (skill.canceledFromSprinting)
                 {
                     StateManager.SprintDisabledTypes.Add(type.FullName);
                 }
-                
-                if (skill.cancelSprintingOnActivation)
+                else if (skill.cancelSprintingOnActivation)
                 {
                     StateManager.SprintDelayTypeValuePairs.Add((type.FullName, "0"));
                 }
@@ -158,7 +155,7 @@ namespace AutoSprint.Core
 
         internal static void UpdateDelayStates(object _, EventArgs __)
         {
-            EntityStateDelayMap.Clear();
+            EntityStateDelayTable.Clear();
 
             foreach ((string type, string value) in SprintDelayTypeValuePairs)
             {
@@ -205,7 +202,7 @@ namespace AutoSprint.Core
             if (float.TryParse(value, out var val))
             {
                 Log.Message($"Type: {type.FullName} | Value: {val} | Has been added to the custom entity state list.");
-                EntityStateDelayMap[index] = val;
+                EntityStateDelayTable[index] = val;
             }
             else
                 AddFieldInfo(type, index, value);
@@ -227,12 +224,12 @@ namespace AutoSprint.Core
                 return;
             }
 
-            if (EntityStateDelayMap.ContainsKey(index))
-                Log.Warning($"\r\nOverwriting duplicate entry\r\n{T.FullName} : {field.Name}\r\nold {EntityStateDelayMap[index]?.ToString() ?? "NULL"} | new {field.Name}");
+            if (EntityStateDelayTable.ContainsKey(index))
+                Log.Warning($"\r\nOverwriting duplicate entry\r\n{T.FullName} : {field.Name}\r\nold {EntityStateDelayTable[index]?.ToString() ?? "NULL"} | new {field.Name}");
             else
                 Log.Message($"Type: {T.FullName} | Field: {name} | Has been added to the custom entity state list.");
 
-            EntityStateDelayMap[index] = field;
+            EntityStateDelayTable[index] = field;
         }
     }
 }
