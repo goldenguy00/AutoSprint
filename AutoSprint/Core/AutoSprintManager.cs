@@ -9,6 +9,7 @@ namespace AutoSprint.Core
     public class AutoSprintManager
     {
         public float AnimationExitDelay => PluginConfig.DelayTicks.Value * Time.fixedDeltaTime;
+        public float BaseExitDelay => PluginConfig.BaseDelayTicks.Value * Time.fixedDeltaTime;
         public CharacterBody CachedBody => _cachedBody;
 
         private CharacterBody _cachedBody;
@@ -47,7 +48,7 @@ namespace AutoSprint.Core
             // nothing to do
             if (!_enableSprintOverride || isSprinting)
             {
-                _delayTimer = PluginConfig.BaseDelayTicks.Value * Time.fixedDeltaTime;
+                _delayTimer = BaseExitDelay;
                 return;
             }
             
@@ -80,7 +81,7 @@ namespace AutoSprint.Core
                     var stateIndex = EntityStateCatalog.GetStateIndex(stateMachine.state.GetType());
 
                     if (StateManager.EntityStateDisabledSet.Contains(stateIndex))
-                        activeDelayTimer = Mathf.Max(activeDelayTimer, AnimationExitDelay);
+                        activeDelayTimer = Mathf.Max(activeDelayTimer, BaseExitDelay);
 
                     if (StateManager.EntityStateDelayTable.ContainsKey(stateIndex))
                         activeDelayTimer = Mathf.Max(activeDelayTimer, GetDurationRemaining(stateMachine.state, stateIndex));

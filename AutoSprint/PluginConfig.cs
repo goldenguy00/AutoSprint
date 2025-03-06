@@ -58,16 +58,16 @@ namespace AutoSprint
 
             BaseDelayTicks = cfg.BindOptionSlider(
                 "General",
-                "Base Delay Ticks",
+                "Base Delay",
                 5,
-                "How long to wait before sprinting after not sprinting for any reason. A tick == 60hz == 16ms",
+                "How long to wait, in game ticks, before sprinting. Game runs at 60hz, so 1 tick == 16ms",
                 0, 60);
 
             DelayTicks = cfg.BindOptionSlider(
                 "General",
-                "DelayTicks",
+                "Skill Activation Delay",
                 20,
-                "How long to wait before sprinting after being forced into a walk. A tick == 60hz == 16ms",
+                "How long to wait, in game ticks, before sprinting after beginning certain skills. Game runs at 60hz, so 1 tick == 16ms",
                 0, 60);
 
             EnableDebugMode = cfg.BindOption(
