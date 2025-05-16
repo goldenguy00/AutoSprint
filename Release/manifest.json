@@ -1,7 +1,7 @@
 ﻿{
 	"name": "AutoSprint",
 	"author": "score",
-	"version_number": "1.4.2",
+	"version_number": "1.4.3",
 	"website_url": "https://github.com/goldenguy00/AutoSprint",
 	"description": "Sprint by default, as God intended",
     "dependencies": [

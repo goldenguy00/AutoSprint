@@ -14,7 +14,7 @@ namespace AutoSprint
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "AutoSprint";
-        public const string PluginVersion = "1.4.1";
+        public const string PluginVersion = "1.4.3";
 
         internal static bool RooInstalled => Chainloader.PluginInfos.ContainsKey("com.rune580.riskofoptions");
 

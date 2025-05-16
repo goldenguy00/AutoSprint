@@ -1,6 +1,12 @@
+## 1.4.3
+
+- IdleSnipe
+
 ## 1.4.2
 
 - Fix delay ticks not resetting on non-agile skills 
+- New cfg option to distinguish the two
+- Should make animations a bit smoother now
 
 ## 1.4.1
 

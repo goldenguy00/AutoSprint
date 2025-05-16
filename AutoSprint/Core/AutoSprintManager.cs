@@ -46,7 +46,7 @@ namespace AutoSprint.Core
                 _enableSprintOverride = !_enableSprintOverride;
 
             // nothing to do
-            if (!_enableSprintOverride || isSprinting)
+            if (!_enableSprintOverride || isSprinting || pcmc.bodyInputs.moveVector == Vector3.zero)
             {
                 _delayTimer = BaseExitDelay;
                 return;

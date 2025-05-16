@@ -20,7 +20,7 @@ namespace AutoSprint.Core
         /// Also, its a good way to store non-user generated states seperately for whenever the list is regenerated
         /// Also, its a great way to add soft compat without worrying about missing references
         /// </summary>
-        public static readonly HashSet<string> SprintDisabledTypes = [];
+        public static readonly HashSet<string> SprintDisabledTypeNames = [];
         public static readonly HashSet<EntityStateIndex> EntityStateDisabledSet = [];
 
         public static readonly HashSet<BodyIndex> DisabledBodies = [];
@@ -59,7 +59,7 @@ namespace AutoSprint.Core
 
                 if (skill.canceledFromSprinting)
                 {
-                    StateManager.SprintDisabledTypes.Add(type.FullName);
+                    StateManager.SprintDisabledTypeNames.Add(type.FullName);
                 }
                 else if (skill.cancelSprintingOnActivation)
                 {
@@ -67,21 +67,21 @@ namespace AutoSprint.Core
                 }
             }
 
-            StateManager.SprintDisabledTypes.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
-            StateManager.SprintDisabledTypes.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldBase).FullName);
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Toolbot.FireNailgun).FullName);
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Toolbot.ToolbotDualWieldBase).FullName);
 
-            StateManager.SprintDisabledTypes.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.VoidSurvivor.Weapon.FireCorruptHandBeam).FullName);
 
-            StateManager.SprintDisabledTypes.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
-            StateManager.SprintDisabledTypes.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
-            StateManager.SprintDisabledTypes.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeHeavy).FullName);
-            StateManager.SprintDisabledTypes.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeLight).FullName);
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeHeavy).FullName);
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeHeavy).FullName);
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeLight).FullName);
 
-            StateManager.SprintDisabledTypes.Remove(typeof(EntityStates.FalseSon.LaserFather).FullName);
+            StateManager.SprintDisabledTypeNames.Remove(typeof(EntityStates.FalseSon.LaserFather).FullName);
 
             // AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-            StateManager.SprintDisabledTypes.Remove(typeof(EntityStates.Croco.Slash).FullName);
-            StateManager.SprintDisabledTypes.Remove(typeof(EntityStates.Croco.Bite).FullName);
+            StateManager.SprintDisabledTypeNames.Remove(typeof(EntityStates.Croco.Slash).FullName);
+            StateManager.SprintDisabledTypeNames.Remove(typeof(EntityStates.Croco.Bite).FullName);
 
             StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName, nameof(EntityStates.Toolbot.ToolbotDualWieldStart.baseDuration)));
             StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Croco.Slash).FullName, nameof(EntityStates.Croco.Slash.durationBeforeInterruptable)));
@@ -118,9 +118,10 @@ namespace AutoSprint.Core
 
             List<string> customList =
             [
-                .. SprintDisabledTypes,
+                .. SprintDisabledTypeNames,
                 "LeeHyperrealMod.SkillStates.LeeHyperreal.Secondary.EnterSnipe",
                 "LeeHyperrealMod.SkillStates.LeeHyperreal.Secondary.Snipe",
+                "LeeHyperrealMod.SkillStates.LeeHyperreal.Secondary.IdleSnipe",
                 "LeeHyperrealMod.SkillStates.LeeHyperreal.Secondary.ExitSnipe",
                 "PaladinMod.States.Spell.ChannelCruelSun",
                 "PaladinMod.States.Spell.ChannelHealZone",
@@ -201,7 +202,7 @@ namespace AutoSprint.Core
 
             if (float.TryParse(value, out var val))
             {
-                Log.Message($"Type: {type.FullName} | Value: {val} | Has been added to the custom entity state list.");
+                Log.Info($"Type: {type.FullName} | Value: {val} | Has been added to the custom entity state list.");
                 EntityStateDelayTable[index] = val;
             }
             else
@@ -227,7 +228,7 @@ namespace AutoSprint.Core
             if (EntityStateDelayTable.ContainsKey(index))
                 Log.Warning($"\r\nOverwriting duplicate entry\r\n{T.FullName} : {field.Name}\r\nold {EntityStateDelayTable[index]?.ToString() ?? "NULL"} | new {field.Name}");
             else
-                Log.Message($"Type: {T.FullName} | Field: {name} | Has been added to the custom entity state list.");
+                Log.Info($"Type: {T.FullName} | Field: {name} | Has been added to the custom entity state list.");
 
             EntityStateDelayTable[index] = field;
         }

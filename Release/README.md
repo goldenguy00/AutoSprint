@@ -1,10 +1,6 @@
-### I highly recommend using Dragonyck's version if you dont really care about messing with configs!!!
+# RTAutoSprint
 
-- https://thunderstore.io/package/Dragonyck/RTAutoSprintEx/
-
----
-
-## RTAutoSprint, Rewritten From The Ground Up
+   ### Rewritten From The Ground Up
 
 ---
 
