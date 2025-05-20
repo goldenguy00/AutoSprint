@@ -20,15 +20,15 @@ namespace AutoSprint.Core
         private Hooks()
         {
             EnableDebugMode_SettingChanged(null, null);
+
             PluginConfig.EnableDebugMode.SettingChanged += EnableDebugMode_SettingChanged;
 
-            BodyCatalog.availability.CallWhenAvailable(StateManager.UpdateFromBodyCatalog);
             On.RoR2.EntityStateCatalog.Init += EntityStateCatalog_Init;
-            On.RoR2.Skills.SkillCatalog.Init += SkillCatalog_Init;
 
             IL.RoR2.PlayerCharacterMasterController.PollButtonInput += PlayerCharacterMasterController_PollButtonInput;
             IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal;
+            IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal2;
         }
 
         private void EnableDebugMode_SettingChanged(object sender, EventArgs e)
@@ -44,26 +44,67 @@ namespace AutoSprint.Core
             }
         }
 
+        private static void EntityState_OnEnter(On.EntityStates.EntityState.orig_OnEnter orig, EntityStates.EntityState self)
+        {
+            orig(self);
+
+            if (self.characterBody && self.characterBody == AutoSprintManager.CachedBody)
+                Log.Info(self.GetType().FullName);
+        }
+
         private static IEnumerator EntityStateCatalog_Init(On.RoR2.EntityStateCatalog.orig_Init orig)
         {
             yield return orig();
 
-            StateManager.UpdateFromEntityStateCatalog();
+            for (var k = 0; k < EntityStateCatalog.stateIndexToType.Length; k++)
+            {
+                StateManager.TypeFullNameToStateIndex[EntityStateCatalog.stateIndexToType[k].FullName] = (EntityStateIndex)k;
+            }
+
+            yield return null;
+
+            StateManager.UpdateDisabledStates(null, null);
+            StateManager.UpdateDelayStates(null, null);
+
+            PluginConfig.DisableSprintingCustomList.SettingChanged += StateManager.UpdateDisabledStates;
+            PluginConfig.DisableSprintingCustomList2.SettingChanged += StateManager.UpdateDelayStates;
         }
 
-        private static void SkillCatalog_Init(On.RoR2.Skills.SkillCatalog.orig_Init orig)
+        private static void CameraModePlayerBasic_UpdateInternal2(ILContext il)
         {
-            orig();
+            var c0 = new ILCursor(il);
+            ILCursor[] cList = null;
+            int camParamsLoc = 0;
 
-            StateManager.UpdateFromSkillCatalog();
+            if (!c0.TryFindNext(out cList,
+                    x => x.MatchLdfld<CameraModeBase.CameraInfo>(nameof(CameraModeBase.CameraInfo.baseFov)),
+                    x => x.MatchLdfld<CameraRigController>(nameof(CameraRigController.baseFov))) ||
+                !c0.TryGotoNext(MoveType.After,
+                    x => x.MatchLdloc(out camParamsLoc),
+                    x => x.MatchCall<UnityEngine.Object>("op_Implicit"),
+                    x => x.MatchBrfalse(out _)
+                ))
+            {
+                Log.Error("AutoSprint IL hook for CameraModePlayerBasic_UpdateInternal Custom FOV failed");
+                return;
+            }
+
+            cList[0].Index++;
+            cList[0].EmitDelegate<Func<float, float>>((fov) => fov + PluginConfig.FovSlider.Value);
+
+            cList[1].Index++;
+            cList[1].EmitDelegate<Func<float, float>>((fov) => fov + PluginConfig.FovSlider.Value);
+
+            c0.Emit(OpCodes.Ldloc, camParamsLoc);
+            c0.EmitDelegate<Action<CameraTargetParams>>((camParams) => camParams.currentCameraParamsData.fov.value = PluginConfig.FovSlider.Value);
         }
 
         private static void CameraModePlayerBasic_UpdateInternal(ILContext il)
         {
             var c = new ILCursor(il);
-
-            ILLabel noFovLabel = null;
             ILCursor[] c1 = null;
+            ILLabel noFovLabel = null;
+
             if (c.TryGotoNext(
                     x => x.MatchLdarg(out _),
                     x => x.MatchLdflda<CameraModeBase.CameraModeContext>(nameof(CameraModeBase.CameraModeContext.targetInfo)),
@@ -84,15 +125,8 @@ namespace AutoSprint.Core
                 c.Emit(OpCodes.Brtrue, noFovLabel);
             }
             else
-                Log.Error("AutoSprint IL hook for CameraModePlayerBasic_UpdateInternal failed");
-        }
+                Log.Error("AutoSprint IL hook for CameraModePlayerBasic_UpdateInternal Sprinting FOV failed");
 
-        private static void EntityState_OnEnter(On.EntityStates.EntityState.orig_OnEnter orig, EntityStates.EntityState self)
-        {
-            orig(self);
-
-            if (self.characterBody && self.characterBody == AutoSprintManager.Instance?.CachedBody)
-                Log.Info(self.GetType().FullName);
         }
 
         private static void PlayerCharacterMasterController_PollButtonInput(ILContext il)

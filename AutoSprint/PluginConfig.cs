@@ -8,9 +8,9 @@ namespace AutoSprint
 {
     internal static class PluginConfig
     {
-        // CONFIGURATION
         public static ConfigEntry<bool> HoldSprintToWalk { get; set; }
         public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
+        public static ConfigEntry<int> FovSlider { get; set; }
         public static ConfigEntry<bool> DisableSprintingFOV { get; set; }
         public static ConfigEntry<bool> ForceSprintingFOV { get; set; }
         public static ConfigEntry<int> BaseDelayTicks { get; set; }
@@ -37,6 +37,13 @@ namespace AutoSprint
                 "Disable Sprinting Crosshair",
                 true,
                 "Disables the special sprinting chevron crosshair.");
+
+            FovSlider = cfg.BindOptionSlider(
+                "General",
+                "Global FOV Increase",
+                0,
+                "Adds the configured value to all fov calculations. Set to 0 to disable.",
+                0, 60);
 
             ForceSprintingFOV = cfg.BindOption(
                 "General",
@@ -75,7 +82,6 @@ namespace AutoSprint
                 "Enable Debug Mode",
                 false,
                 "Prints every entity state that your character changes to.");
-
 
 
             //  advanced
@@ -141,14 +147,12 @@ namespace AutoSprint
             if (string.IsNullOrEmpty(description))
                 description = name;
 
+            description += $" (Default: {defaultValue})";
+
             if (restartRequired)
                 description += " (restart required)";
 
-            AcceptableValueBase range = null;
-            if (typeof(T).IsEnum)
-                range = new AcceptableValueList<string>(Enum.GetNames(typeof(T)));
-
-            var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, range));
+            var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description));
 
             if (AutoSprintPlugin.RooInstalled)
                 TryRegisterOption(configEntry, restartRequired);
@@ -171,7 +175,7 @@ namespace AutoSprint
             if (string.IsNullOrEmpty(description))
                 description = name;
 
-            description += " (Default: " + defaultValue + ")";
+            description += $" (Default: {defaultValue})";
 
             if (restartRequired)
                 description += " (restart required)";
@@ -194,7 +198,7 @@ namespace AutoSprint
             if (string.IsNullOrEmpty(description))
                 description = name;
 
-            description += " (Default: " + defaultValue + ")";
+            description += $" (Default: {defaultValue})";
 
             if (restartRequired)
                 description += " (restart required)";
@@ -251,7 +255,7 @@ namespace AutoSprint
                     min = (int)min,
                     max = (int)max,
                     formatString = "{0:0.00}",
-                    restartRequired = restartRequired
+                    restartRequired = restartRequired,
                 }));
             }
             else if (entry is ConfigEntry<float> floatEntry)

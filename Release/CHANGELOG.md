@@ -1,3 +1,7 @@
+## 1.4.4
+
+- Added FOV slider
+
 ## 1.4.3
 
 - IdleSnipe

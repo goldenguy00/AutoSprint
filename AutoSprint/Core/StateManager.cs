@@ -27,25 +27,7 @@ namespace AutoSprint.Core
 
         public static readonly Dictionary<string, EntityStateIndex> TypeFullNameToStateIndex = [];
 
-        internal static void UpdateFromBodyCatalog()
-        {
-            StateManager.UpdateDisabledBodies(null, null);
-            PluginConfig.DisableSprintingCustomList.SettingChanged += StateManager.UpdateDisabledBodies;
-        }
-
-        internal static void UpdateFromEntityStateCatalog()
-        {
-            for (var k = 0; k < EntityStateCatalog.stateIndexToType.Length; k++)
-            {
-                StateManager.TypeFullNameToStateIndex[EntityStateCatalog.stateIndexToType[k].FullName] = (EntityStateIndex)k;
-            }
-
-            StateManager.UpdateDisabledStates(null, null);
-            StateManager.UpdateDelayStates(null, null);
-            PluginConfig.DisableSprintingCustomList.SettingChanged += StateManager.UpdateDisabledStates;
-            PluginConfig.DisableSprintingCustomList2.SettingChanged += StateManager.UpdateDelayStates;
-        }
-
+        [SystemInitializer([typeof(SkillCatalog)])]
         internal static void UpdateFromSkillCatalog()
         {
             foreach (var skill in SkillCatalog.allSkillDefs)
@@ -86,6 +68,13 @@ namespace AutoSprint.Core
             StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName, nameof(EntityStates.Toolbot.ToolbotDualWieldStart.baseDuration)));
             StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Croco.Slash).FullName, nameof(EntityStates.Croco.Slash.durationBeforeInterruptable)));
             StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Croco.Bite).FullName, nameof(EntityStates.Croco.Bite.durationBeforeInterruptable)));
+        }
+
+        [SystemInitializer([typeof(BodyCatalog)])]
+        internal static void UpdateFromBodyCatalog()
+        {
+            StateManager.UpdateDisabledBodies(null, null);
+            PluginConfig.DisableSprintingCustomList.SettingChanged += StateManager.UpdateDisabledBodies;
         }
 
         internal static void UpdateDisabledBodies(object _, EventArgs __)

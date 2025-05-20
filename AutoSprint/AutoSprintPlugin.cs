@@ -28,7 +28,6 @@ namespace AutoSprint
 
             Log.Init(Logger);
             PluginConfig.Init(Config);
-            AutoSprintManager.Init();
             Hooks.Init();
         }
     }
