@@ -6,6 +6,7 @@ using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using RoR2;
 using RoR2.CameraModes;
+using UnityEngine;
 
 namespace AutoSprint.Core
 {
@@ -29,17 +30,24 @@ namespace AutoSprint.Core
             IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal;
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal2;
-
+            On.RoR2.CameraRigController.SetParticleSystemActive += CameraRigController_SetParticleSystemActive;
             On.RoR2.CameraRigController.SetSprintParticlesActive += CameraRigController_SetSprintParticlesActive;
         }
 
         private static void CameraRigController_SetSprintParticlesActive(On.RoR2.CameraRigController.orig_SetSprintParticlesActive orig, CameraRigController self, bool newSprintParticlesActive)
         {
-            if (self.sprintingParticleSystem)
-            {
-                self.sprintingParticleSystem.gameObject.SetActive(!PluginConfig.DisableSprintingSpeedLines.Value);
-            }
+            newSprintParticlesActive &= !PluginConfig.DisableSprintingSpeedLines.Value;
             orig(self, newSprintParticlesActive);
+        }
+
+        private static void CameraRigController_SetParticleSystemActive(On.RoR2.CameraRigController.orig_SetParticleSystemActive orig, CameraRigController self, bool newParticlesActive, ParticleSystem particleSystem)
+        {
+            if (particleSystem == self.sprintingParticleSystem)
+            {
+                newParticlesActive &= !PluginConfig.DisableSprintingSpeedLines.Value;
+            }
+
+            orig(self, newParticlesActive, particleSystem);
         }
 
         private void EnableDebugMode_SettingChanged(object sender, EventArgs e)
