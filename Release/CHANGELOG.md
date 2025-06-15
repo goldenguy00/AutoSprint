@@ -1,4 +1,16 @@
-## 1.4.4
+## 1.4.7
+
+- Fixed FOV slider (sorry for delay! it works now)
+- Moved some config options
+- Added config options to disable the speed lines when sprinting
+- Improved load times
+- Added Dante support
+
+## 1.4.6
+
+- Removed FOV slider lol
+
+## 1.4.5
 
 - Added FOV slider
 

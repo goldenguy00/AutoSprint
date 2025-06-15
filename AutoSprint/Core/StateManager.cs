@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using RoR2;
 using RoR2.Skills;
@@ -30,13 +31,10 @@ namespace AutoSprint.Core
         [SystemInitializer([typeof(SkillCatalog)])]
         internal static void UpdateFromSkillCatalog()
         {
-            foreach (var skill in SkillCatalog.allSkillDefs)
+            foreach (var skill in SkillCatalog.allSkillDefs.Where(s => !s.forceSprintDuringState && (s.cancelSprintingOnActivation || s.canceledFromSprinting)))
             {
-                if (!skill || skill.forceSprintDuringState)
-                    continue;
-
                 var type = skill.activationState.stateType;
-                if (type is null || type == typeof(EntityStates.Idle) || type.IsSubclassOf(typeof(EntityStates.Idle)))
+                if (type?.FullName is not null && typeof(EntityStates.Idle).IsAssignableFrom(type))
                     continue;
 
                 if (skill.canceledFromSprinting)
@@ -121,6 +119,7 @@ namespace AutoSprint.Core
                 "PaladinMod.States.Spell.CastChanneledWarcry",
                 "PaladinMod.States.Spell.CastChanneledTorpor",
                 "PaladinMod.States.Spell.CastChanneledHealZone",
+                "DanteMod.SkillStates.Dante.LockOn"
             ];
 
             foreach (var state in PluginConfig.DisableSprintingCustomList.Value.Replace(" ", string.Empty).Split(','))
@@ -169,7 +168,7 @@ namespace AutoSprint.Core
             }
         }
 
-        private static void AddSprintDelay(string typeFullName, string value)
+        public static void AddSprintDelay(string typeFullName, string value)
         {
             value ??= string.Empty;
             if (!TypeFullNameToStateIndex.TryGetValue(typeFullName, out var index))
@@ -198,7 +197,7 @@ namespace AutoSprint.Core
                 AddFieldInfo(type, index, value);
         }
 
-        private static void AddFieldInfo(Type T, EntityStateIndex index, string name)
+        public static void AddFieldInfo(Type T, EntityStateIndex index, string name)
         {
             var field = AccessTools.DeclaredField(T, name);
 

@@ -29,6 +29,13 @@ namespace AutoSprint.Core
             IL.RoR2.UI.CrosshairManager.UpdateCrosshair += CrosshairManager_UpdateCrosshair;
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal;
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal2;
+
+            On.RoR2.CameraRigController.SetSprintParticlesActive += this.CameraRigController_SetSprintParticlesActive;
+        }
+
+        private void CameraRigController_SetSprintParticlesActive(On.RoR2.CameraRigController.orig_SetSprintParticlesActive orig, CameraRigController self, bool newSprintParticlesActive)
+        {
+            orig(self, newSprintParticlesActive && !PluginConfig.DisableSprintingSpeedLines.Value);
         }
 
         private void EnableDebugMode_SettingChanged(object sender, EventArgs e)
@@ -72,17 +79,10 @@ namespace AutoSprint.Core
 
         private static void CameraModePlayerBasic_UpdateInternal2(ILContext il)
         {
-            var c0 = new ILCursor(il);
             ILCursor[] cList = null;
-            int camParamsLoc = 0;
-
-            if (!c0.TryFindNext(out cList,
+            if (!new ILCursor(il).TryFindNext(out cList,
                     x => x.MatchLdfld<CameraModeBase.CameraInfo>(nameof(CameraModeBase.CameraInfo.baseFov)),
-                    x => x.MatchLdfld<CameraRigController>(nameof(CameraRigController.baseFov))) ||
-                !c0.TryGotoNext(MoveType.After,
-                    x => x.MatchLdloc(out camParamsLoc),
-                    x => x.MatchCall<UnityEngine.Object>("op_Implicit"),
-                    x => x.MatchBrfalse(out _)
+                    x => x.MatchLdfld<CameraRigController>(nameof(CameraRigController.baseFov))
                 ))
             {
                 Log.Error("AutoSprint IL hook for CameraModePlayerBasic_UpdateInternal Custom FOV failed");
@@ -94,9 +94,6 @@ namespace AutoSprint.Core
 
             cList[1].Index++;
             cList[1].EmitDelegate<Func<float, float>>((fov) => fov + PluginConfig.FovSlider.Value);
-
-            c0.Emit(OpCodes.Ldloc, camParamsLoc);
-            c0.EmitDelegate<Action<CameraTargetParams>>((camParams) => camParams.currentCameraParamsData.fov.value = PluginConfig.FovSlider.Value);
         }
 
         private static void CameraModePlayerBasic_UpdateInternal(ILContext il)
@@ -107,7 +104,7 @@ namespace AutoSprint.Core
 
             if (c.TryGotoNext(
                     x => x.MatchLdarg(out _),
-                    x => x.MatchLdflda<CameraModeBase.CameraModeContext>(nameof(CameraModeBase.CameraModeContext.targetInfo)),
+                    x => x.MatchLdflda<CameraModeBase.CameraModeContext>(nameof(CameraModePlayerBasic.CameraModeContext.targetInfo)),
                     x => x.MatchLdfld<CameraModeBase.TargetInfo>(nameof(CameraModeBase.TargetInfo.isSprinting))) &&
                 c.TryFindNext(out c1,
                     x => x.MatchBrfalse(out noFovLabel)
