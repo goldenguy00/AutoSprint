@@ -31,18 +31,25 @@ namespace AutoSprint.Core
         [SystemInitializer([typeof(SkillCatalog)])]
         internal static void UpdateFromSkillCatalog()
         {
-            foreach (var skill in SkillCatalog.allSkillDefs.Where(s => !s.forceSprintDuringState && (s.cancelSprintingOnActivation || s.canceledFromSprinting)))
+            foreach (var skill in SkillCatalog.allSkillDefs)
             {
-                var type = skill.activationState.stateType;
-                if (type?.FullName is not null && typeof(EntityStates.Idle).IsAssignableFrom(type))
+                if (!skill || skill.forceSprintDuringState)
                     continue;
 
                 if (skill.canceledFromSprinting)
                 {
+                    var type = skill.activationState.stateType;
+                    if (type?.FullName is not null && typeof(EntityStates.Idle).IsAssignableFrom(type))
+                        continue;
+
                     StateManager.SprintDisabledTypeNames.Add(type.FullName);
                 }
                 else if (skill.cancelSprintingOnActivation)
                 {
+                    var type = skill.activationState.stateType;
+                    if (type?.FullName is not null && typeof(EntityStates.Idle).IsAssignableFrom(type))
+                        continue;
+
                     StateManager.SprintDelayTypeValuePairs.Add((type.FullName, "0"));
                 }
             }
