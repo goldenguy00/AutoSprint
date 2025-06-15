@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using HarmonyLib;
 using RoR2;
 using RoR2.Skills;
@@ -13,8 +12,8 @@ namespace AutoSprint.Core
         /// <summary>
         /// Key-Value pair of (EntityStateIndex, float) --or-- (EntityStateIndex, FieldInfo)
         /// </summary>
-        public static readonly HashSet<(string, string)> SprintDelayTypeValuePairs = [];
-        public static readonly Hashtable EntityStateDelayTable = [];
+        public static readonly Dictionary<string, string> SprintDelayTypeNameValuePairs = [];
+        public static readonly Hashtable SprintStateDelayTable = [];
 
         /// <summary>
         /// This list of strings is later converted to indexes, since it gets populated before the entitystate catalog exists
@@ -39,7 +38,7 @@ namespace AutoSprint.Core
                 if (skill.canceledFromSprinting)
                 {
                     var type = skill.activationState.stateType;
-                    if (type?.FullName is not null && typeof(EntityStates.Idle).IsAssignableFrom(type))
+                    if (string.IsNullOrEmpty(type?.FullName) || typeof(EntityStates.Idle).IsAssignableFrom(type))
                         continue;
 
                     StateManager.SprintDisabledTypeNames.Add(type.FullName);
@@ -47,10 +46,10 @@ namespace AutoSprint.Core
                 else if (skill.cancelSprintingOnActivation)
                 {
                     var type = skill.activationState.stateType;
-                    if (type?.FullName is not null && typeof(EntityStates.Idle).IsAssignableFrom(type))
+                    if (string.IsNullOrEmpty(type?.FullName) || typeof(EntityStates.Idle).IsAssignableFrom(type))
                         continue;
 
-                    StateManager.SprintDelayTypeValuePairs.Add((type.FullName, "0"));
+                    StateManager.SprintDelayTypeNameValuePairs[type.FullName] = "0";
                 }
             }
 
@@ -70,9 +69,9 @@ namespace AutoSprint.Core
             StateManager.SprintDisabledTypeNames.Remove(typeof(EntityStates.Croco.Slash).FullName);
             StateManager.SprintDisabledTypeNames.Remove(typeof(EntityStates.Croco.Bite).FullName);
 
-            StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName, nameof(EntityStates.Toolbot.ToolbotDualWieldStart.baseDuration)));
-            StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Croco.Slash).FullName, nameof(EntityStates.Croco.Slash.durationBeforeInterruptable)));
-            StateManager.SprintDelayTypeValuePairs.Add((typeof(EntityStates.Croco.Bite).FullName, nameof(EntityStates.Croco.Bite.durationBeforeInterruptable)));
+            StateManager.SprintDelayTypeNameValuePairs[typeof(EntityStates.Toolbot.ToolbotDualWieldStart).FullName] = nameof(EntityStates.Toolbot.ToolbotDualWieldStart.baseDuration);
+            StateManager.SprintDelayTypeNameValuePairs[typeof(EntityStates.Croco.Slash).FullName] = nameof(EntityStates.Croco.Slash.durationBeforeInterruptable);
+            StateManager.SprintDelayTypeNameValuePairs[typeof(EntityStates.Croco.Bite).FullName] = nameof(EntityStates.Croco.Bite.durationBeforeInterruptable);
         }
 
         [SystemInitializer([typeof(BodyCatalog)])]
@@ -151,11 +150,11 @@ namespace AutoSprint.Core
 
         internal static void UpdateDelayStates(object _, EventArgs __)
         {
-            EntityStateDelayTable.Clear();
+            SprintStateDelayTable.Clear();
 
-            foreach ((string type, string value) in SprintDelayTypeValuePairs)
+            foreach (var kvp in SprintDelayTypeNameValuePairs)
             {
-                AddSprintDelay(type, value);
+                AddSprintDelay(kvp.Key, kvp.Value);
             }
 
             foreach (var statePair in PluginConfig.DisableSprintingCustomList2.Value.Replace(" ", string.Empty).Split(')'))
@@ -198,7 +197,7 @@ namespace AutoSprint.Core
             if (float.TryParse(value, out var val))
             {
                 Log.Info($"Type: {type.FullName} | Value: {val} | Has been added to the custom entity state list.");
-                EntityStateDelayTable[index] = val;
+                SprintStateDelayTable[index] = val;
             }
             else
                 AddFieldInfo(type, index, value);
@@ -220,12 +219,12 @@ namespace AutoSprint.Core
                 return;
             }
 
-            if (EntityStateDelayTable.ContainsKey(index))
-                Log.Warning($"\r\nOverwriting duplicate entry\r\n{T.FullName} : {field.Name}\r\nold {EntityStateDelayTable[index]?.ToString() ?? "NULL"} | new {field.Name}");
+            if (SprintStateDelayTable.ContainsKey(index))
+                Log.Warning($"\r\nOverwriting duplicate entry\r\n{T.FullName} : {field.Name}\r\nold {SprintStateDelayTable[index]?.ToString() ?? "NULL"} | new {field.Name}");
             else
                 Log.Info($"Type: {T.FullName} | Field: {name} | Has been added to the custom entity state list.");
 
-            EntityStateDelayTable[index] = field;
+            SprintStateDelayTable[index] = field;
         }
     }
 }

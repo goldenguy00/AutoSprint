@@ -69,7 +69,7 @@ namespace AutoSprint.Core
                     if (StateManager.EntityStateDisabledSet.Contains(stateIndex))
                         activeDelayTimer = Mathf.Max(activeDelayTimer, BaseExitDelay);
 
-                    if (StateManager.EntityStateDelayTable.ContainsKey(stateIndex))
+                    if (StateManager.SprintStateDelayTable.ContainsKey(stateIndex))
                         activeDelayTimer = Mathf.Max(activeDelayTimer, GetDurationRemaining(stateMachine.state, stateIndex));
                 }
             }
@@ -79,10 +79,10 @@ namespace AutoSprint.Core
 
         private static float GetDurationRemaining(EntityState state, EntityStateIndex stateIndex)
         {
-            if (StateManager.EntityStateDelayTable[stateIndex] is float duration)
+            if (StateManager.SprintStateDelayTable[stateIndex] is float duration)
                 return AnimationExitDelay + (duration - state.fixedAge);
 
-            if (StateManager.EntityStateDelayTable[stateIndex] is FieldInfo info && info.FieldType == typeof(float) && info.DeclaringType.IsAssignableFrom(state.GetType()))
+            if (StateManager.SprintStateDelayTable[stateIndex] is FieldInfo info && info.FieldType == typeof(float) && info.DeclaringType.IsAssignableFrom(state.GetType()))
                 return AnimationExitDelay + ((float)info.GetValue(state) - state.fixedAge);
 
             Log.Error($"Field for {state.GetType().FullName} is invalid, default is delay is {AnimationExitDelay}.");

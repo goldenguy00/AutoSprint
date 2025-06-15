@@ -30,12 +30,16 @@ namespace AutoSprint.Core
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal;
             IL.RoR2.CameraModes.CameraModePlayerBasic.UpdateInternal += CameraModePlayerBasic_UpdateInternal2;
 
-            On.RoR2.CameraRigController.SetSprintParticlesActive += this.CameraRigController_SetSprintParticlesActive;
+            On.RoR2.CameraRigController.SetSprintParticlesActive += CameraRigController_SetSprintParticlesActive;
         }
 
-        private void CameraRigController_SetSprintParticlesActive(On.RoR2.CameraRigController.orig_SetSprintParticlesActive orig, CameraRigController self, bool newSprintParticlesActive)
+        private static void CameraRigController_SetSprintParticlesActive(On.RoR2.CameraRigController.orig_SetSprintParticlesActive orig, CameraRigController self, bool newSprintParticlesActive)
         {
-            orig(self, newSprintParticlesActive && !PluginConfig.DisableSprintingSpeedLines.Value);
+            if (self.sprintingParticleSystem)
+            {
+                self.sprintingParticleSystem.gameObject.SetActive(!PluginConfig.DisableSprintingSpeedLines.Value);
+            }
+            orig(self, newSprintParticlesActive);
         }
 
         private void EnableDebugMode_SettingChanged(object sender, EventArgs e)
