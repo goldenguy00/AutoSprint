@@ -1,3 +1,9 @@
+## 1.5.0
+- Remote op support
+
+## 1.4.8
+- More Dante support
+
 ## 1.4.7
 
 - Fixed FOV slider (sorry for delay! it works now)

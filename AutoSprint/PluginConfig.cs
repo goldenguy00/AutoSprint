@@ -9,25 +9,33 @@ namespace AutoSprint
 {
     internal static class PluginConfig
     {
-        public static ConfigEntry<bool> HoldSprintToWalk { get; set; }
-        public static ConfigEntry<bool> DisableSprintingCrosshair { get; set; }
-        public static ConfigEntry<bool> DisableSprintingSpeedLines { get; set; }
-        public static ConfigEntry<int> FovSlider { get; set; }
-        public static ConfigEntry<bool> DisableSprintingFOV { get; set; }
-        public static ConfigEntry<bool> ForceSprintingFOV { get; set; }
-        public static ConfigEntry<bool> EnableOmniSprint { get; set; }
+        public static ConfigEntry<bool> EnableMod { get; private set; }
+        public static ConfigEntry<bool> HoldSprintToWalk { get; private set; }
+        public static ConfigEntry<bool> DisableSprintingCrosshair { get; private set; }
+        public static ConfigEntry<bool> DisableSprintingSpeedLines { get; private set; }
+        public static ConfigEntry<int> FovSlider { get; private set; }
+        public static ConfigEntry<bool> DisableSprintingFOV { get; private set; }
+        public static ConfigEntry<bool> ForceSprintingFOV { get; private set; }
+        public static ConfigEntry<bool> EnableOmniSprint { get; private set; }
 
-        public static ConfigEntry<bool> EnableDebugMode { get; set; }
-        public static ConfigEntry<int> BaseDelayTicks { get; set; }
-        public static ConfigEntry<int> DelayTicks { get; set; }
-        public static ConfigEntry<string> DisabledBodies { get; set; }
-        public static ConfigEntry<string> DisableSprintingCustomList { get; set; }
-        public static ConfigEntry<string> DisableSprintingCustomList2 { get; set; }
+        public static ConfigEntry<bool> EnableDebugMode { get; private set; }
+        public static ConfigEntry<int> BaseDelayTicks { get; private set; }
+        public static ConfigEntry<int> DelayTicks { get; private set; }
+        public static ConfigEntry<string> DisabledBodies { get; private set; }
+        public static ConfigEntry<string> DisableSprintingCustomList { get; private set; }
+        public static ConfigEntry<string> DisableSprintingCustomList2 { get; private set; }
 
         public static void Init(ConfigFile cfg)
         {
             if (AutoSprintPlugin.RooInstalled)
                 InitRoO();
+
+            EnableMod = cfg.BindOption(
+                "General",
+                "Enable Mod",
+                "Set to false to disable all functionality.",
+                true,
+                Extensions.ConfigFlags.ClientSided);
 
             HoldSprintToWalk = cfg.BindOption(
                 "General",

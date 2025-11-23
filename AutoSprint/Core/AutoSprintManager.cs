@@ -20,6 +20,9 @@ namespace AutoSprint.Core
 
         public static void TryHandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
         {
+            if (PluginConfig.EnableMod.Value == false || pcmc.body.isRemoteOp)
+                return;
+
             if (StateManager.DisabledBodies.Contains(pcmc.body.bodyIndex))
                 return;
 

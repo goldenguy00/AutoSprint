@@ -36,13 +36,15 @@ namespace AutoSprint.Core
 
         private static void CameraRigController_SetSprintParticlesActive(On.RoR2.CameraRigController.orig_SetSprintParticlesActive orig, CameraRigController self, bool newSprintParticlesActive)
         {
-            newSprintParticlesActive &= !PluginConfig.DisableSprintingSpeedLines.Value;
+            if (PluginConfig.EnableMod.Value)
+                newSprintParticlesActive &= !PluginConfig.DisableSprintingSpeedLines.Value;
+
             orig(self, newSprintParticlesActive);
         }
 
         private static void CameraRigController_SetParticleSystemActive(On.RoR2.CameraRigController.orig_SetParticleSystemActive orig, CameraRigController self, bool newParticlesActive, ParticleSystem particleSystem)
         {
-            if (particleSystem == self.sprintingParticleSystem)
+            if (PluginConfig.EnableMod.Value && particleSystem == self.sprintingParticleSystem)
             {
                 newParticlesActive &= !PluginConfig.DisableSprintingSpeedLines.Value;
             }
@@ -67,7 +69,7 @@ namespace AutoSprint.Core
         {
             orig(self);
 
-            if (self.characterBody && self.characterBody == AutoSprintManager.CachedBody)
+            if (PluginConfig.EnableMod.Value && self.characterBody && self.characterBody == AutoSprintManager.CachedBody)
                 Log.Info(self.GetType().FullName);
         }
 
@@ -102,10 +104,10 @@ namespace AutoSprint.Core
             }
 
             cList[0].Index++;
-            cList[0].EmitDelegate<Func<float, float>>((fov) => fov + PluginConfig.FovSlider.Value);
+            cList[0].EmitDelegate<Func<float, float>>((fov) => PluginConfig.EnableMod.Value ? fov + PluginConfig.FovSlider.Value : fov);
 
             cList[1].Index++;
-            cList[1].EmitDelegate<Func<float, float>>((fov) => fov + PluginConfig.FovSlider.Value);
+            cList[1].EmitDelegate<Func<float, float>>((fov) => PluginConfig.EnableMod.Value ? fov + PluginConfig.FovSlider.Value : fov);
         }
 
         private static void CameraModePlayerBasic_UpdateInternal(ILContext il)
@@ -125,12 +127,10 @@ namespace AutoSprint.Core
                 c1[0].Index++;
                 var setFovLabel = c1[0].MarkLabel();
 
-                c.Emit(OpCodes.Call, AccessTools.PropertyGetter(typeof(PluginConfig), nameof(PluginConfig.ForceSprintingFOV)));
-                c.Emit(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value)));
+                c.EmitDelegate(() => PluginConfig.EnableMod.Value && PluginConfig.ForceSprintingFOV.Value);
                 c.Emit(OpCodes.Brtrue, setFovLabel);
 
-                c.Emit(OpCodes.Call, AccessTools.PropertyGetter(typeof(PluginConfig), nameof(PluginConfig.DisableSprintingFOV)));
-                c.Emit(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value)));
+                c.EmitDelegate(() => PluginConfig.EnableMod.Value && PluginConfig.DisableSprintingFOV.Value);
                 c.Emit(OpCodes.Brtrue, noFovLabel);
             }
             else
@@ -174,8 +174,7 @@ namespace AutoSprint.Core
                     x => x.MatchBrtrue(out label))
                 ))
             {
-                c.Emit(OpCodes.Call, AccessTools.PropertyGetter(typeof(PluginConfig), nameof(PluginConfig.EnableOmniSprint)));
-                c.Emit(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value)));
+                c.EmitDelegate(() => PluginConfig.EnableMod.Value && PluginConfig.EnableOmniSprint.Value);
                 c.Emit(OpCodes.Brtrue, label);
             }
             else
@@ -190,7 +189,7 @@ namespace AutoSprint.Core
                     x => x.MatchCallOrCallvirt(AccessTools.PropertyGetter(typeof(CharacterBody), nameof(CharacterBody.isSprinting)))
                 ))
             {
-                c.EmitDelegate<Func<bool, bool>>((val) => val && !PluginConfig.DisableSprintingCrosshair.Value);
+                c.EmitDelegate<Func<bool, bool>>((val) => PluginConfig.EnableMod.Value ? (val && !PluginConfig.DisableSprintingCrosshair.Value) : val);
             }
             else
                 Log.Error("AutoSprint IL hook for CrosshairManager_UpdateCrosshair failed");

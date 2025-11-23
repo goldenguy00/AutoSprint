@@ -30,26 +30,30 @@ namespace AutoSprint.Core
         [SystemInitializer([typeof(SkillCatalog)])]
         internal static void UpdateFromSkillCatalog()
         {
-            foreach (var skill in SkillCatalog.allSkillDefs)
+            var idleType = typeof(EntityStates.Idle);
+            for (int i = 0; i < SkillCatalog._allSkillDefs.Length; i++)
             {
-                if (!skill || skill.forceSprintDuringState)
+                var skill = SkillCatalog._allSkillDefs[i];
+                if (skill?.forceSprintDuringState != false)
                     continue;
 
                 if (skill.canceledFromSprinting)
                 {
                     var type = skill.activationState.stateType;
-                    if (string.IsNullOrEmpty(type?.FullName) || typeof(EntityStates.Idle).IsAssignableFrom(type))
+                    var fullName = type?.FullName;
+                    if (string.IsNullOrEmpty(fullName) || idleType == type || type.IsSubclassOf(idleType))
                         continue;
 
-                    StateManager.SprintDisabledTypeNames.Add(type.FullName);
+                    StateManager.SprintDisabledTypeNames.Add(fullName);
                 }
                 else if (skill.cancelSprintingOnActivation)
                 {
                     var type = skill.activationState.stateType;
-                    if (string.IsNullOrEmpty(type?.FullName) || typeof(EntityStates.Idle).IsAssignableFrom(type))
+                    var fullName = type?.FullName;
+                    if (string.IsNullOrEmpty(fullName) || idleType == type || type.IsSubclassOf(idleType))
                         continue;
 
-                    StateManager.SprintDelayTypeNameValuePairs[type.FullName] = "0";
+                    StateManager.SprintDelayTypeNameValuePairs[fullName] = "0";
                 }
             }
 
@@ -62,6 +66,8 @@ namespace AutoSprint.Core
             StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Railgunner.Scope.ActiveScopeLight).FullName);
             StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeHeavy).FullName);
             StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.Railgunner.Scope.WindUpScopeLight).FullName);
+
+            StateManager.SprintDisabledTypeNames.Add(typeof(EntityStates.DroneTech.Weapon.ShieldFormation).FullName);
 
             StateManager.SprintDisabledTypeNames.Remove(typeof(EntityStates.FalseSon.LaserFather).FullName);
 
@@ -125,7 +131,8 @@ namespace AutoSprint.Core
                 "PaladinMod.States.Spell.CastChanneledWarcry",
                 "PaladinMod.States.Spell.CastChanneledTorpor",
                 "PaladinMod.States.Spell.CastChanneledHealZone",
-                "DanteMod.SkillStates.Dante.LockOn"
+                "DanteMod.SkillStates.Dante.LockOn",
+                "DanteMod.SkillStates.Dante.Swap"
             ];
 
             foreach (var state in PluginConfig.DisableSprintingCustomList.Value.Replace(" ", string.Empty).Split(','))
