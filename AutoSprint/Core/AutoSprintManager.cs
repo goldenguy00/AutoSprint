@@ -3,29 +3,42 @@ using UnityEngine;
 using Rewired;
 using System.Reflection;
 using EntityStates;
+using System;
 
 namespace AutoSprint.Core
 {
-    public static class AutoSprintManager
+    public class AutoSprintManager
     {
-        public static float AnimationExitDelay => PluginConfig.DelayTicks.Value * Time.fixedDeltaTime;
-        public static float BaseExitDelay => PluginConfig.BaseDelayTicks.Value * Time.fixedDeltaTime;
-        public static CharacterBody CachedBody => _cachedBody;
+        public float AnimationExitDelay => PluginConfig.DelayTicks.Value * Time.fixedDeltaTime;
+        public float BaseExitDelay => PluginConfig.BaseDelayTicks.Value * Time.fixedDeltaTime;
+        public static CharacterBody CachedBody;
+        public static NetworkStateMachine CachedStateMachine;
 
-        private static CharacterBody _cachedBody;
-        private static EntityStateMachine[] _cachedStateMachines;
+        private float _delayTimer;
+        private bool _enableSprintOverride = true;
 
-        private static float _delayTimer;
-        private static bool _enableSprintOverride = true;
+        public static AutoSprintManager Instance { get; private set; }
+        public static void Init() => Instance ??= new AutoSprintManager();
+        private AutoSprintManager() { }
 
         public static void TryHandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
         {
-            if (PluginConfig.EnableMod.Value == false || pcmc.body.isRemoteOp)
+            if (pcmc.body != CachedBody)
+            {
+                Log.Info(BodyCatalog.GetBodyName(pcmc.body.bodyIndex));
+
+                CachedBody = pcmc.body;
+                CachedStateMachine = pcmc.body.GetComponent<NetworkStateMachine>();
+            }
+
+            if (pcmc.body.isRemoteOp || StateManager.DisabledBodies.Contains(pcmc.body.bodyIndex))
                 return;
 
-            if (StateManager.DisabledBodies.Contains(pcmc.body.bodyIndex))
-                return;
+            Instance.HandleSprint(pcmc, inputPlayer, isSprinting);
+        }
 
+        private void HandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
+        {
             // update walk
             if (PluginConfig.HoldSprintToWalk.Value)
                 _enableSprintOverride = !inputPlayer.GetButton("Sprint");
@@ -40,7 +53,7 @@ namespace AutoSprint.Core
             }
             
             // check state
-            if (!CanSprintBeEnabled(pcmc.body, out var activeDelayTimer))
+            if (!CanSprintBeEnabled(out var activeDelayTimer))
                 _delayTimer = activeDelayTimer;
 
             // do thing or not
@@ -50,21 +63,13 @@ namespace AutoSprint.Core
                 pcmc.sprintInputPressReceived = true;
         }
 
-        private static bool CanSprintBeEnabled(CharacterBody targetBody, out float activeDelayTimer)
+        private bool CanSprintBeEnabled(out float activeDelayTimer)
         {
             activeDelayTimer = 0f;
 
-            if (targetBody != _cachedBody)
+            for (var i = 0; i < CachedStateMachine.stateMachines.Length; i++)
             {
-                Log.Info(BodyCatalog.GetBodyName(targetBody.bodyIndex));
-
-                _cachedBody = targetBody;
-                _cachedStateMachines = targetBody.GetComponents<EntityStateMachine>();
-            }
-
-            for (var i = 0; i < _cachedStateMachines.Length; i++)
-            {
-                var stateMachine = _cachedStateMachines[i];
+                var stateMachine = CachedStateMachine.stateMachines[i];
                 if (stateMachine?.state is not null)
                 {
                     var stateIndex = EntityStateCatalog.GetStateIndex(stateMachine.state.GetType());
@@ -73,23 +78,22 @@ namespace AutoSprint.Core
                         activeDelayTimer = Mathf.Max(activeDelayTimer, BaseExitDelay);
 
                     if (StateManager.SprintStateDelayTable.ContainsKey(stateIndex))
-                        activeDelayTimer = Mathf.Max(activeDelayTimer, GetDurationRemaining(stateMachine.state, stateIndex));
+                        activeDelayTimer = Mathf.Max(activeDelayTimer, GetDurationRemaining(stateMachine.state, StateManager.SprintStateDelayTable[stateIndex]));
                 }
             }
 
             return activeDelayTimer == 0f;
         }
 
-        private static float GetDurationRemaining(EntityState state, EntityStateIndex stateIndex)
+        private float GetDurationRemaining(EntityState state, object value)
         {
-            if (StateManager.SprintStateDelayTable[stateIndex] is float duration)
-                return AnimationExitDelay + (duration - state.fixedAge);
+            float maxDuration = 0f;
+            if (value is float duration)
+                maxDuration = duration;
+            else if (value is FieldInfo info && info.FieldType == typeof(float) && (info.IsStatic || info.DeclaringType.IsAssignableFrom(state.GetType())))
+                maxDuration = (float)info.GetValue(!info.IsStatic ? state : null);
 
-            if (StateManager.SprintStateDelayTable[stateIndex] is FieldInfo info && info.FieldType == typeof(float) && info.DeclaringType.IsAssignableFrom(state.GetType()))
-                return AnimationExitDelay + ((float)info.GetValue(state) - state.fixedAge);
-
-            Log.Error($"Field for {state.GetType().FullName} is invalid, default is delay is {AnimationExitDelay}.");
-            return AnimationExitDelay - state.fixedAge;
+            return AnimationExitDelay + (maxDuration - state.fixedAge);
         }
 
     } // End of class RTAutoSprintEx

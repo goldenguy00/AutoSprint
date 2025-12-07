@@ -1,3 +1,8 @@
+## 1.5.1
+- Clanker support
+- Hunk support
+- Better hook management
+
 ## 1.5.0
 - Remote op support
 

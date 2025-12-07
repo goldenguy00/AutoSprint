@@ -101,7 +101,7 @@ namespace AutoSprint
                 "Base Delay",
                 "How long to wait, in game ticks, before sprinting. Game runs at 60hz, so 1 tick == 16ms",
                 5,
-                0, 60,
+                1, 60,
                 Extensions.ConfigFlags.ClientSided);
 
             DelayTicks = cfg.BindOptionSlider(
@@ -109,7 +109,7 @@ namespace AutoSprint
                 "Skill Activation Delay",
                 "How long to wait, in game ticks, before sprinting after beginning certain skills. Game runs at 60hz, so 1 tick == 16ms",
                 20,
-                0, 60,
+                5, 60,
                 Extensions.ConfigFlags.ClientSided);
 
             DisabledBodies = cfg.BindOption(
