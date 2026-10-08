@@ -21,7 +21,9 @@ namespace AutoSprint.Core
         public static void Init() => Instance ??= new AutoSprintManager();
         private AutoSprintManager() { }
 
-        public static void TryHandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
+        // Returns the sprint state PollButtonInput should push. Since the 2026-10 game update the game
+        // toggles a local from body.isSprinting instead of reading sprintInputPressReceived.
+        public static bool TryHandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
         {
             if (pcmc.body != CachedBody)
             {
@@ -32,35 +34,39 @@ namespace AutoSprint.Core
             }
 
             if (pcmc.body.isRemoteOp || StateManager.DisabledBodies.Contains(pcmc.body.bodyIndex))
-                return;
+                return isSprinting;
 
-            Instance.HandleSprint(pcmc, inputPlayer, isSprinting);
+            return Instance.HandleSprint(pcmc, inputPlayer, isSprinting);
         }
 
-        private void HandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
+        private bool HandleSprint(PlayerCharacterMasterController pcmc, Player inputPlayer, bool isSprinting)
         {
             // update walk
+            // rawSprintInput still holds last tick's state here, so justPressed fires once per press.
             if (PluginConfig.HoldSprintToWalk.Value)
                 _enableSprintOverride = !inputPlayer.GetButton("Sprint");
-            else if (pcmc.sprintInputPressReceived)
+            else if (pcmc.bodyInputs.rawSprintInput.justPressed)
                 _enableSprintOverride = !_enableSprintOverride;
 
             // nothing to do
             if (!_enableSprintOverride || isSprinting || pcmc.bodyInputs.moveVector == Vector3.zero)
             {
                 _delayTimer = BaseExitDelay;
-                return;
+                return isSprinting;
             }
-            
+
             // check state
             if (!CanSprintBeEnabled(out var activeDelayTimer))
                 _delayTimer = activeDelayTimer;
 
             // do thing or not
             if (_delayTimer > 0f)
+            {
                 _delayTimer -= Time.fixedDeltaTime;
-            else
-                pcmc.sprintInputPressReceived = true;
+                return isSprinting;
+            }
+
+            return true;
         }
 
         private bool CanSprintBeEnabled(out float activeDelayTimer)
