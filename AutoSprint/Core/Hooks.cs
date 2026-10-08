@@ -84,6 +84,7 @@ namespace AutoSprint.Core
                 c.Emit(OpCodes.Ldloc, playerLoc);
                 c.Emit(OpCodes.Ldloc, isSprintingLoc);
                 c.EmitDelegate(AutoSprintManager.TryHandleSprint);
+                c.Emit(OpCodes.Stloc, isSprintingLoc);
             }
             else
                 Log.Error("AutoSprint IL hook for PlayerCharacterMasterController_PollButtonInput failed");
